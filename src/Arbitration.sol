@@ -2,11 +2,9 @@
 pragma solidity 0.8.30;
 
 contract Arbitration {
-    constructor() {
+    constructor() {}
 
-    }
-    
-     function raiseDispute(uint256 tradeId) external {
+    function raiseDispute(uint256 tradeId) external {
         Trade storage t = trades[tradeId];
         require(msg.sender == t.buyer || msg.sender == t.supplier, "not a party");
         t.status = Status.Disputed;
