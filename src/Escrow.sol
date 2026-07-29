@@ -53,6 +53,13 @@ contract Escrow is ReentrancyGuard, Ownable {
     error Escrow__TradeExpired(uint256 deadline);
     error Escrow__InvalidTradeId();
     error Escrow__TradeIdAlreadyFunded();
+    error Escrow__TradeAlreadyReleasedOrDisputed();
+    error Escrow__TradeConditionsHaveNotBeenMet();
+    error Escrow__AllTradeConditionsMustBeMet();
+    error Escrow__TradeIdNotFunded();
+    error Escrow__ShippedConditionsNotMet();
+    error Escrow__ReceivedGoodsConditionsNotMet();
+    error Escrow__ClearedCustomsConditionsNotMet();
 
     /*//////////////////////////////////////////////////////////////
                             TYPE DECLARATIONS
@@ -70,7 +77,7 @@ contract Escrow is ReentrancyGuard, Ownable {
         address supplier;
         address arbiter; // Mutual agreement between Buyer and Supplier at trade creation — both must agree on a neutral third party before funds move (this is how real trade finance/escrow works — an agreed inspector, chamber of commerce, or trade finance institution)
         uint256 amount;
-        uint64 deadline;
+        uint64 deadline; // question: What exactly is this deadline supposed to protect against; late funding, late conditions met or late delivery confirmation?
         bool shipped;
         bool customsCleared;
         bool goodsReceived;
@@ -95,6 +102,11 @@ contract Escrow is ReentrancyGuard, Ownable {
         uint256 indexed tradeId, address indexed buyer, address supplier, address indexed arbiter, uint256 amount
     );
     event TradeFunded(uint256 indexed tradeId, address indexed buyer, address supplier, uint256 indexed amount);
+    event TradeFundsReleasedToSupplier(uint256 indexed tradeId, address indexed supplier, uint256 indexed amount);
+    event AllTradeConditionsMet(uint256 indexed tradeId);
+    event ShippedConditionsMet(uint256 indexed tradeId);
+    event ClearedCustomsConditionsMet(uint256 indexed tradeId);
+    event ReceivedGoodsConditionsMet(uint256 indexed tradeId);
 
     /*/////////////////////////////////////////////////////////
                             CONSTRUCTOR
@@ -144,7 +156,7 @@ contract Escrow is ReentrancyGuard, Ownable {
         // EFFECTS
         // t.deadline = block.timestamp + 2 days
 
-        uint256 tradeId = s_nextTradeId++;
+        uint256 tradeId = s_nextTradeId++; // The post-increment and pre-increment operators are implemented by reading the variable’s value before or after modifying it. i++``returns the value of ``i before incrementing, and ++i returns the value of i after incrementing.
         s_trades[tradeId] = Trade({
             buyer: msg.sender,
             supplier: supplier,
@@ -165,7 +177,7 @@ contract Escrow is ReentrancyGuard, Ownable {
     function fundTrade(uint256 tradeId) external {
         // CHECKS
 
-        if (tradeId > s_nextTradeId || tradeId == 0) {
+        if (tradeId >= s_nextTradeId) {
             revert Escrow__InvalidTradeId();
         }
 
@@ -183,33 +195,154 @@ contract Escrow is ReentrancyGuard, Ownable {
         }
 
         // EFFECTS
-        t.status = Status.Funded;
+        t.status = Status.Funded; // question: what if the vault tx fails, does it mean this enum won't reflect that?
 
         // INTERACTIONS
-        i_vault.depositERC(tradeId, t.buyer, t.amount);
+        i_vault.depositERC(tradeId, t.buyer, t.amount); // question: should this tx function call return probably a bool to ascertain if it went through?
 
         emit TradeFunded(tradeId, msg.sender, t.supplier, t.amount);
     }
 
     function confirmDelivery(uint256 tradeId) external {
         // CHECKS
-        if (tradeId > s_nextTradeId || tradeId == 0) {
+        if (tradeId >= s_nextTradeId) {
             revert Escrow__InvalidTradeId();
         }
 
         Trade storage t = s_trades[tradeId];
-        
+
+        if (msg.sender != t.arbiter) {
+            revert Escrow__OnlyArbiterAddress();
+        }
+
+        if (t.status == Status.Released || t.status == Status.Disputed) {
+            revert Escrow__TradeAlreadyReleasedOrDisputed();
+        }
+        if (t.status != Status.ConditionsMet) {
+            revert Escrow__TradeConditionsHaveNotBeenMet();
+        }
+
+        // EFFECTS
+        t.status = Status.Released;
+
+        // INTERACTIONS
+        i_vault.withdrawERC(tradeId, t.supplier, t.amount);
+
+        emit TradeFundsReleasedToSupplier(tradeId, t.supplier, t.amount);
+    }
+
+    function meetTradeConditions(uint256 tradeId) external {
+        // CHECKS
+        if (tradeId >= s_nextTradeId) {
+            revert Escrow__InvalidTradeId();
+        }
+
+        Trade storage t = s_trades[tradeId];
+
+        if (t.status != Status.Funded) {
+            revert Escrow__TradeIdNotFunded();
+        }
         if (msg.sender != t.arbiter) {
             revert Escrow__OnlyArbiterAddress();
         }
 
         // EFFECTS
+        if (t.shipped && t.customsCleared && t.goodsReceived) {
+            t.status = Status.ConditionsMet;
+        } else {
+            revert Escrow__AllTradeConditionsMustBeMet();
+        }
 
         // INTERACTIONS
-        i_vault.withdrawERC(tradeId, t.buyer, t.amount);
+        emit AllTradeConditionsMet(tradeId);
     }
-    function release(uint256 tradeId) external {}
 
+    function confirmShipped(uint256 tradeId, bool shipped) external {
+        // CHECKS
+        if (tradeId >= s_nextTradeId) {
+            revert Escrow__InvalidTradeId();
+        }
+
+        Trade storage t = s_trades[tradeId];
+
+        if (t.status != Status.Funded) {
+            revert Escrow__TradeIdNotFunded();
+        }
+        if (msg.sender != t.arbiter) {
+            revert Escrow__OnlyArbiterAddress();
+        }
+
+        // EFFECTS
+        if (shipped) {
+            t.shipped = shipped;
+        } else {
+            revert Escrow__ShippedConditionsNotMet();
+        }
+
+        // INTERACTIONS
+        emit ShippedConditionsMet(tradeId);
+    }
+
+    function confirmCustomsCleared(uint256 tradeId, bool customsCleared) external {
+        // CHECKS
+        if (tradeId >= s_nextTradeId) {
+            revert Escrow__InvalidTradeId();
+        }
+
+        Trade storage t = s_trades[tradeId];
+
+        if (t.status != Status.Funded) {
+            revert Escrow__TradeIdNotFunded();
+        }
+        if (msg.sender != t.arbiter) {
+            revert Escrow__OnlyArbiterAddress();
+        }
+        // EFFECTS
+        if (customsCleared) {
+            t.customsCleared = customsCleared;
+        } else {
+            revert Escrow__ClearedCustomsConditionsNotMet();
+        }
+
+        // INTERACTIONS
+        emit ClearedCustomsConditionsMet(tradeId);
+    }
+
+    function confirmGoodsReceived(uint256 tradeId, bool goodsReceived) external {
+        // CHECKS
+        if (tradeId >= s_nextTradeId) {
+            revert Escrow__InvalidTradeId();
+        }
+
+        Trade storage t = s_trades[tradeId];
+
+        if (t.status != Status.Funded) {
+            revert Escrow__TradeIdNotFunded();
+        }
+        if (msg.sender != t.arbiter) {
+            revert Escrow__OnlyArbiterAddress();
+        }
+
+        // EFFECTS
+        if (goodsReceived) {
+            t.goodsReceived = goodsReceived;
+        } else {
+            revert Escrow__ReceivedGoodsConditionsNotMet();
+        }
+
+        // INTERACTIONS
+        emit ReceivedGoodsConditionsMet(tradeId);
+    }
+
+    function raiseDispute(uint256 tradeId) external {}
+
+    function resolveDispute(uint256 tradeId) external {}
+
+    function claimRefund(uint256 tradeId) external {}
+
+    function cancelTrade(uint256 tradeId) external {}
+
+    // function release(uint256 tradeId) external {}
 
     /*////////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
@@ -235,3 +368,4 @@ contract Escrow is ReentrancyGuard, Ownable {
         return (t.shipped, t.customsCleared, t.goodsReceived);
     }
 }
+
