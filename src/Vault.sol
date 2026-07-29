@@ -39,6 +39,7 @@ contract Vault is ReentrancyGuard, Ownable {
     //////////////////////////////////////////////////////////////*/
     error Vault__NoneZeroAddress();
     error Vault__OnlyEscrowCanCall();
+    error Vault__InsufficientBalance();
 
     /*//////////////////////////////////////////////////////////////
                             TYPE DECLARATIONS
@@ -104,6 +105,10 @@ contract Vault is ReentrancyGuard, Ownable {
         _depositERC(tradeId, from, amount);
     }
 
+    function withdrawERC(uint256 tradeId, address to, uint256 amount) external nonReentrant onlyEscrow(msg.sender) {
+        _withdrawERC(tradeId, to, amount);
+    }
+
     /*////////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
     ////////////////////////////////////////////////////////////////*/
@@ -120,7 +125,17 @@ contract Vault is ReentrancyGuard, Ownable {
         emit ERCTokenDeposited(msg.sender, amount);
     }
 
-    function _withdrawERC(uint256 amount) internal {
+    function _withdrawERC(uint256 tradeId, address to, uint256 amount) internal {
+        // CHECKS
+        if (s_balances[tradeId] < amount) {
+            revert Vault__InsufficientBalance();
+        }
+
+        // EFFECTS
+        s_balances[tradeId] -= amount;
+
+        // INTERACTIONS
+        I_TOKEN.safeTransfer(to, amount);
         emit ERCTokenWithdrawn(msg.sender, amount);
     }
 }

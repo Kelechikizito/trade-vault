@@ -52,6 +52,7 @@ contract Escrow is ReentrancyGuard, Ownable {
     error Escrow__InvalidDeadline();
     error Escrow__TradeExpired(uint256 deadline);
     error Escrow__InvalidTradeId();
+    error Escrow__TradeIdAlreadyFunded();
 
     /*//////////////////////////////////////////////////////////////
                             TYPE DECLARATIONS
@@ -91,16 +92,16 @@ contract Escrow is ReentrancyGuard, Ownable {
                             EVENTS
     /////////////////////////////////////////////////////////*/
     event TradeCreated(
-        uint256 indexed tradeId, address indexed buyer, address supplier, address indexed arbiter, address amount
+        uint256 indexed tradeId, address indexed buyer, address supplier, address indexed arbiter, uint256 amount
     );
-    event TradeFunded(uint256 indexed tradeId, address indexed buyer, address supplier, address indexed amount);
+    event TradeFunded(uint256 indexed tradeId, address indexed buyer, address supplier, uint256 indexed amount);
 
     /*/////////////////////////////////////////////////////////
                             CONSTRUCTOR
     /////////////////////////////////////////////////////////*/
     constructor(address vaultAddress) Ownable(msg.sender) {
         if (vaultAddress == address(0)) {
-            Escrow__NoneZeroAddress();
+            revert Escrow__NoneZeroAddress();
         }
 
         i_vault = IVault(vaultAddress);
@@ -190,12 +191,25 @@ contract Escrow is ReentrancyGuard, Ownable {
         emit TradeFunded(tradeId, msg.sender, t.supplier, t.amount);
     }
 
+    function confirmDelivery(uint256 tradeId) external {
+        // CHECKS
+        if (tradeId > s_nextTradeId || tradeId == 0) {
+            revert Escrow__InvalidTradeId();
+        }
+
+        Trade storage t = s_trades[tradeId];
+        
+        if (msg.sender != t.arbiter) {
+            revert Escrow__OnlyArbiterAddress();
+        }
+
+        // EFFECTS
+
+        // INTERACTIONS
+        i_vault.withdrawERC(tradeId, t.buyer, t.amount);
+    }
     function release(uint256 tradeId) external {}
 
-    function confirmDelivery(uint256 tradeId) external onlyArbiter {
-        trades[tradeId].conditionsMet = true;
-        _release(tradeId);
-    }
 
     /*////////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
@@ -210,5 +224,14 @@ contract Escrow is ReentrancyGuard, Ownable {
 
     function getTrade(uint256 tradeId) external view returns (Trade memory) {
         return s_trades[tradeId];
+    }
+
+    function getTradeConditions(uint256 tradeId)
+        external
+        view
+        returns (bool shipped, bool customsCleared, bool goodsReceived)
+    {
+        Trade storage t = s_trades[tradeId];
+        return (t.shipped, t.customsCleared, t.goodsReceived);
     }
 }
