@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-// This contract isolates the "what happens when things go wrong" logic away from the core Escrow trust flow — 
+// This contract isolates the "what happens when things go wrong" logic away from the core Escrow trust flow —
 // dispute-raising and dispute-resolution, nothing else.
 contract Arbitration {
     constructor() {}

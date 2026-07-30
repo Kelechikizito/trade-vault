@@ -50,7 +50,7 @@ contract Escrow is ReentrancyGuard, Ownable {
     error Escrow__ArbiterShouldBeNeutralThirdParty(address arbiter);
     error Escrow__OnlyBuyer();
     error Escrow__InvalidDeadline();
-    error Escrow__TradeExpired(uint256 deadline);
+    error Escrow__TradeExpired(uint64 deadline);
     error Escrow__InvalidTradeId();
     error Escrow__TradeIdAlreadyFunded();
     error Escrow__TradeAlreadyReleasedOrDisputed();
@@ -60,6 +60,9 @@ contract Escrow is ReentrancyGuard, Ownable {
     error Escrow__ShippedConditionsNotMet();
     error Escrow__ReceivedGoodsConditionsNotMet();
     error Escrow__ClearedCustomsConditionsNotMet();
+    error Escrow__TradeNotExpired(uint64 deadline);
+    error Escrow__NotATradeParty();
+    error Escrow__TradeNotDisputable();
 
     /*//////////////////////////////////////////////////////////////
                             TYPE DECLARATIONS
@@ -70,7 +73,7 @@ contract Escrow is ReentrancyGuard, Ownable {
         ConditionsMet,
         Disputed,
         // Cancelled,
-        // Refunded,
+        Refunded,
         Released
     }
 
@@ -109,6 +112,8 @@ contract Escrow is ReentrancyGuard, Ownable {
     event ShippedConditionsMet(uint256 indexed tradeId);
     event ClearedCustomsConditionsMet(uint256 indexed tradeId);
     event ReceivedGoodsConditionsMet(uint256 indexed tradeId);
+    event TradeRefunded(uint256 indexed tradeId, address indexed buyer, address indexed amount);
+    event TradeDisputed(uint256 indexed tradeId, address indexed);
 
     /*/////////////////////////////////////////////////////////
                             MODIFIERS
@@ -289,7 +294,7 @@ contract Escrow is ReentrancyGuard, Ownable {
         }
         if (block.timestamp >= t.deadline) {
             revert Escrow__TradeExpired(t.deadline);
-        } 
+        }
 
         // EFFECTS
         // t.shipped = true;
@@ -370,13 +375,20 @@ contract Escrow is ReentrancyGuard, Ownable {
             revert Escrow__InvalidTradeId();
         }
         Trade storage t = s_trades[tradeId];
+        if (msg.sender != t.buyer && msg.sender != t.supplier) {
+            revert Escrow__NotATradeParty();
+        }
+        if (t.status != Status.Funded && t.status != Status.ConditionsMet) {
+            revert Escrow__TradeNotDisputable();
+        }
 
         // EFFECTS
+        t.status = Status.Disputed;
 
         // INTERACTIONS
+        emit TradeDisputed(tradeId, msg.sender);
 
-        require(msg.sender == t.buyer || msg.sender == t.supplier, "not a party");
-        t.status = Status.Disputed;
+
     }
 
     function resolveDispute(uint256 tradeId, bool releaseToSupplier) external {
@@ -386,7 +398,7 @@ contract Escrow is ReentrancyGuard, Ownable {
         Trade storage t = s_trades[tradeId];
         require(t.status == Status.Disputed, "no dispute");
         if (msg.sender != t.arbiter) {
-            revert Arbitration__OnlyArbiterAddress();
+            revert Escrow__OnlyArbiterAddress();
         }
         if (releaseToSupplier) {
             _release(tradeId);
@@ -397,8 +409,26 @@ contract Escrow is ReentrancyGuard, Ownable {
 
     function claimRefund(uint256 tradeId) external {
         // CHECKS
+        if (tradeId >= s_nextTradeId) {
+            revert Escrow__InvalidTradeId();
+        }
+        Trade storage t = s_trades[tradeId];
+        if (msg.sender != t.buyer) {
+            revert Escrow__OnlyBuyer();
+        }
+        if (t.status != Status.Funded) {
+            revert Escrow__TradeIdNotFunded();
+        }
+        if (block.timestamp < t.deadline) {
+            revert Escrow__TradeNotExpired(t.deadline);
+        }
+
         // EFFECTS
+        t.status = Status.Refunded;
+
         // INTERACTIONS
+        _refund(tradeId);
+        emit TradeRefunded(tradeId, t.buyer, t.amount);
     }
 
     function cancelTrade(uint256 tradeId) external {
@@ -406,7 +436,6 @@ contract Escrow is ReentrancyGuard, Ownable {
         // EFFCTS
         // INTERACTIONS
     }
-
 
     /*////////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
@@ -421,8 +450,6 @@ contract Escrow is ReentrancyGuard, Ownable {
     function _refund(uint256 tradeId) internal {
         Trade storage t = s_trades[tradeId];
         i_vault.withdrawERC(tradeId, t.buyer, t.amount);
-
-        // emit
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -444,6 +471,8 @@ contract Escrow is ReentrancyGuard, Ownable {
         Trade storage t = s_trades[tradeId];
         return (t.shipped, t.customsCleared, t.goodsReceived);
     }
+
+    // getDisputeStatus(tradeId)
 
     // question: how can i get a tradeid incase the parties involved forget
 }

@@ -7,8 +7,5 @@ import {Escrow} from "src/Escrow.sol";
 contract EscrowTest is Test {
     Escrow escrow;
 
-    function setUp() public{
-
-    }
-
+    function setUp() public {}
 }

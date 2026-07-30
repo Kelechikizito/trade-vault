@@ -5,7 +5,7 @@ interface IEscrow {
     /*//////////////////////////////////////////////////////////////
                             TYPE DECLARATIONS
     //////////////////////////////////////////////////////////////*/
-     enum Status {
+    enum Status {
         Created,
         Funded,
         ConditionsMet,
@@ -40,9 +40,9 @@ interface IEscrow {
     event ClearedCustomsConditionsMet(uint256 indexed tradeId);
     event ReceivedGoodsConditionsMet(uint256 indexed tradeId);
 
-
-
-    function createTrade(address buyer, address supplier, uint256 amount, address arbiter, uint64 deadline) external returns(uint256);
+    function createTrade(address buyer, address supplier, uint256 amount, address arbiter, uint64 deadline)
+        external
+        returns (uint256);
 
     function fundTrade(uint256 tradeId) external;
 
@@ -50,7 +50,7 @@ interface IEscrow {
 
     function meetTradeConditions(uint256 tradeId) external;
 
-    function confirmShipped(uint256 tradeId, bool shipped) external ;
+    function confirmShipped(uint256 tradeId, bool shipped) external;
 
     function confirmCustomsCleared(uint256 tradeId, bool customsCleared) external;
 
@@ -63,7 +63,7 @@ interface IEscrow {
 
     function getTrade(uint256 tradeId) external view returns (Trade memory);
 
-       function getTradeConditions(uint256 tradeId)
+    function getTradeConditions(uint256 tradeId)
         external
         view
         returns (bool shipped, bool customsCleared, bool goodsReceived);
