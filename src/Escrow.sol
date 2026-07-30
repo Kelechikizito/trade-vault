@@ -69,6 +69,8 @@ contract Escrow is ReentrancyGuard, Ownable {
         Funded,
         ConditionsMet,
         Disputed,
+        // Cancelled,
+        // Refunded,
         Released
     }
 
@@ -107,6 +109,16 @@ contract Escrow is ReentrancyGuard, Ownable {
     event ShippedConditionsMet(uint256 indexed tradeId);
     event ClearedCustomsConditionsMet(uint256 indexed tradeId);
     event ReceivedGoodsConditionsMet(uint256 indexed tradeId);
+
+    /*/////////////////////////////////////////////////////////
+                            MODIFIERS
+    /////////////////////////////////////////////////////////*/
+    modifier validTradeId(uint256 tradeId) {
+        if (tradeId >= s_nextTradeId) {
+            revert Escrow__InvalidTradeId();
+        }
+        _;
+    }
 
     /*/////////////////////////////////////////////////////////
                             CONSTRUCTOR
@@ -245,6 +257,10 @@ contract Escrow is ReentrancyGuard, Ownable {
         if (msg.sender != t.arbiter) {
             revert Escrow__OnlyArbiterAddress();
         }
+        // without it, the Arbiter could confirm conditions and release funds after the deadline has already passed — defeating the point of having a deadline at all. The deadline should act as a hard cutoff: past it, the only valid action left is claimRefund().
+        if (block.timestamp >= t.deadline) {
+            revert Escrow__TradeExpired(t.deadline);
+        }
 
         // EFFECTS
         if (t.shipped && t.customsCleared && t.goodsReceived) {
@@ -271,8 +287,12 @@ contract Escrow is ReentrancyGuard, Ownable {
         if (msg.sender != t.arbiter) {
             revert Escrow__OnlyArbiterAddress();
         }
+        if (block.timestamp >= t.deadline) {
+            revert Escrow__TradeExpired(t.deadline);
+        } 
 
         // EFFECTS
+        // t.shipped = true;
         if (shipped) {
             t.shipped = shipped;
         } else {
@@ -296,6 +316,9 @@ contract Escrow is ReentrancyGuard, Ownable {
         }
         if (msg.sender != t.arbiter) {
             revert Escrow__OnlyArbiterAddress();
+        }
+        if (block.timestamp >= t.deadline) {
+            revert Escrow__TradeExpired(t.deadline);
         }
         // EFFECTS
         if (customsCleared) {
@@ -322,6 +345,9 @@ contract Escrow is ReentrancyGuard, Ownable {
         if (msg.sender != t.arbiter) {
             revert Escrow__OnlyArbiterAddress();
         }
+        if (block.timestamp >= t.deadline) {
+            revert Escrow__TradeExpired(t.deadline);
+        }
 
         // EFFECTS
         if (goodsReceived) {
@@ -334,19 +360,70 @@ contract Escrow is ReentrancyGuard, Ownable {
         emit ReceivedGoodsConditionsMet(tradeId);
     }
 
-    function raiseDispute(uint256 tradeId) external {}
+    /*////////////////////////////////////////////////////////////////
+                    EDGE CASES EXTERNAL FUNCTIONS
+    ////////////////////////////////////////////////////////////////*/
 
-    function resolveDispute(uint256 tradeId) external {}
+    function raiseDispute(uint256 tradeId) external {
+        // CHECKS
+        if (tradeId >= s_nextTradeId) {
+            revert Escrow__InvalidTradeId();
+        }
+        Trade storage t = s_trades[tradeId];
 
-    function claimRefund(uint256 tradeId) external {}
+        // EFFECTS
 
-    function cancelTrade(uint256 tradeId) external {}
+        // INTERACTIONS
 
-    // function release(uint256 tradeId) external {}
+        require(msg.sender == t.buyer || msg.sender == t.supplier, "not a party");
+        t.status = Status.Disputed;
+    }
+
+    function resolveDispute(uint256 tradeId, bool releaseToSupplier) external {
+        // CHECKS
+        // EFFECTS
+        // INTERACTIONS
+        Trade storage t = s_trades[tradeId];
+        require(t.status == Status.Disputed, "no dispute");
+        if (msg.sender != t.arbiter) {
+            revert Arbitration__OnlyArbiterAddress();
+        }
+        if (releaseToSupplier) {
+            _release(tradeId);
+        } else {
+            _refund(tradeId);
+        }
+    }
+
+    function claimRefund(uint256 tradeId) external {
+        // CHECKS
+        // EFFECTS
+        // INTERACTIONS
+    }
+
+    function cancelTrade(uint256 tradeId) external {
+        // CHECKS
+        // EFFCTS
+        // INTERACTIONS
+    }
+
 
     /*////////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
     ////////////////////////////////////////////////////////////////*/
+    function _release(uint256 tradeId) internal {
+        Trade storage t = s_trades[tradeId];
+        i_vault.withdrawERC(tradeId, t.supplier, t.amount);
+
+        // emit
+    }
+
+    function _refund(uint256 tradeId) internal {
+        Trade storage t = s_trades[tradeId];
+        i_vault.withdrawERC(tradeId, t.buyer, t.amount);
+
+        // emit
+    }
 
     /*//////////////////////////////////////////////////////////////
                     EXTERNAL VIEW & PURE FUNCTIONS
@@ -367,5 +444,7 @@ contract Escrow is ReentrancyGuard, Ownable {
         Trade storage t = s_trades[tradeId];
         return (t.shipped, t.customsCleared, t.goodsReceived);
     }
+
+    // question: how can i get a tradeid incase the parties involved forget
 }
 
