@@ -40,6 +40,7 @@ contract Escrow is ReentrancyGuard, Ownable {
     error Escrow__TradeNotDisputable();
     error Escrow__TradeNotDisputed();
     error Escrow__TradeNotCancellable();
+    error Escrow__DifferentAddressesForBuyerAndSupplier();
 
     /*//////////////////////////////////////////////////////////////
                             TYPE DECLARATIONS
@@ -189,6 +190,9 @@ contract Escrow is ReentrancyGuard, Ownable {
         if (supplier == address(0)) {
             revert Escrow__NoneZeroAddress();
         }
+        if (supplier == buyer) {
+            revert Escrow__DifferentAddressesForBuyerAndSupplier();
+        }
         if (amount == 0) {
             revert Escrow__InvalidAmount();
         }
@@ -270,9 +274,9 @@ contract Escrow is ReentrancyGuard, Ownable {
             revert Escrow__OnlyArbiterAddress(); // to-do: OnlyArbiter Modifier
         }
 
-        if (t.status == Status.Released || t.status == Status.Disputed) {
-            revert Escrow__TradeAlreadyReleasedOrDisputed();
-        }
+        // if (t.status == Status.Released || t.status == Status.Disputed) {
+        //     revert Escrow__TradeAlreadyReleasedOrDisputed();
+        // }
         if (t.status != Status.ConditionsMet) {
             revert Escrow__TradeConditionsHaveNotBeenMet();
         }
@@ -415,6 +419,9 @@ contract Escrow is ReentrancyGuard, Ownable {
         if (t.status != Status.Funded && t.status != Status.ConditionsMet) {
             revert Escrow__TradeNotDisputable();
         }
+        if (block.timestamp >= t.deadline) {
+            revert Escrow__TradeExpired(t.deadline);
+        }
 
         // EFFECTS
         t.status = Status.Disputed;
@@ -439,9 +446,6 @@ contract Escrow is ReentrancyGuard, Ownable {
         }
 
         // EFFECTS & INTERACTIONS
-        if (msg.sender != t.arbiter) {
-            revert Escrow__OnlyArbiterAddress();
-        }
         if (releaseToSupplier) {
             _release(tradeId);
         } else {
