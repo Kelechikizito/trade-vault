@@ -5,7 +5,5 @@ import {Script} from "forge-std/Script.sol";
 import {Escrow} from "src/Escrow.sol";
 
 contract DeployEscrowScript is Script {
-    function run() public {
-
-    }
+    function run() public {}
 }

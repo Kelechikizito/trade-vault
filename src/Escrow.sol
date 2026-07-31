@@ -436,10 +436,29 @@ contract Escrow is ReentrancyGuard, Ownable {
         _refund(tradeId);
     }
 
+    // Trade ID is never rescinded — trade IDs should be permanent and never reused/deleted.
+    // cancelTrade should just set status = Status.Cancelled (a new enum value you'll need to add).
+    // Reusing IDs risks collisions with historical events/logs referencing that ID.
     function cancelTrade(uint256 tradeId) external {
         // CHECKS
-        // EFFCTS
+        if (tradeId >= s_nextTradeId) {
+            revert Escrow__InvalidTradeId();
+        }
+
+        Trade storage t = s_trades[tradeId];
+
+        if (msg.sender != t.buyer) {
+            revert Escrow__OnlyBuyer();
+        }
+        if (t.status != Status.Created) {
+            revert Escrow__TradeNotCancellable();
+        }
+
+        // EFFECTS
+        t.status = Status.Cancelled;
+
         // INTERACTIONS
+        emit TradeCancelled(tradeId, msg.sender);
     }
 
     /*////////////////////////////////////////////////////////////////
@@ -448,7 +467,7 @@ contract Escrow is ReentrancyGuard, Ownable {
     function _release(uint256 tradeId) internal {
         Trade storage t = s_trades[tradeId];
         t.status = Status.Released;
-        
+
         i_vault.withdrawERC(tradeId, t.supplier, t.amount);
 
         emit TradeFundsReleasedToSupplier(tradeId, t.supplier, t.amount);

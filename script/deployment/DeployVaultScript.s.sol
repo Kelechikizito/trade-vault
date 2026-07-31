@@ -5,7 +5,5 @@ import {Script} from "forge-std/Script.sol";
 import {Vault} from "src/Vault.sol";
 
 contract DeployVaultScript is Script {
-    function run() public {
-
-    }
+    function run() public {}
 }
