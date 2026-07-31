@@ -1,35 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-// Layout of the contract file:
-// version
-// imports
-// interfaces, libraries, contract
-// errorssss
-
-// Inside Contract:
-// Type declarations
-// State variables
-// Events
-// Modifiers
-
-// Layout of Functions:
-// constructor
-// receive function (if exists)
-// fallback function (if exists)
-// external
-// public
-// internal
-// private
-
-// view & pure functions
-
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {Vault} from "src/Vault.sol";
+// import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+// import {Vault} from "src/Vault.sol";
 import {IVault} from "src/interfaces/IVault.sol";
 
 // Escrow contract (per-trade logic)
@@ -145,57 +120,58 @@ contract Escrow is ReentrancyGuard, Ownable {
 
     function createTrade(address buyer, address supplier, uint256 amount, address arbiter, uint64 deadline)
         external
-        returns (uint256)
+        nonReentrant
+        returns (uint256 tradeId)
     {
-        _createTrade(buyer, supplier, amount, arbiter, deadline);
+        tradeId = _createTrade(buyer, supplier, amount, arbiter, deadline);
     }
 
-    function fundTrade(uint256 tradeId) external {
-       _fundTrade(tradeId);
+    function fundTrade(uint256 tradeId) external nonReentrant {
+        _fundTrade(tradeId);
     }
 
-    function confirmDelivery(uint256 tradeId) external {
+    function confirmDelivery(uint256 tradeId) external nonReentrant {
         _confirmDelivery(tradeId);
     }
 
-    function meetTradeConditions(uint256 tradeId) external {
-      _meetTradeConditions(tradeId);
+    function meetTradeConditions(uint256 tradeId) external nonReentrant {
+        _meetTradeConditions(tradeId);
     }
 
-    function confirmShipped(uint256 tradeId, bool shipped) external {
-       _confirmShipped(tradeId, shipped);
+    function confirmShipped(uint256 tradeId, bool shipped) external nonReentrant {
+        _confirmShipped(tradeId, shipped);
     }
 
-    function confirmCustomsCleared(uint256 tradeId, bool customsCleared) external {
+    function confirmCustomsCleared(uint256 tradeId, bool customsCleared) external nonReentrant {
         _confirmCustomsCleared(tradeId, customsCleared);
     }
 
-    function confirmGoodsReceived(uint256 tradeId, bool goodsReceived) external {
-      _confirmGoodsReceived(tradeId, goodsReceived);
+    function confirmGoodsReceived(uint256 tradeId, bool goodsReceived) external nonReentrant {
+        _confirmGoodsReceived(tradeId, goodsReceived);
     }
 
     /*////////////////////////////////////////////////////////////////
                     EDGE CASES EXTERNAL FUNCTIONS
     ////////////////////////////////////////////////////////////////*/
 
-    function raiseDispute(uint256 tradeId) external {
+    function raiseDispute(uint256 tradeId) external nonReentrant {
         _raiseDispute(tradeId);
     }
 
-    function resolveDispute(uint256 tradeId, bool releaseToSupplier) external {
-       _resolveDispute(tradeId, releaseToSupplier);
+    function resolveDispute(uint256 tradeId, bool releaseToSupplier) external nonReentrant {
+        _resolveDispute(tradeId, releaseToSupplier);
     }
 
-    function claimRefund(uint256 tradeId) external {
-       _claimRefund(tradeId);
+    function claimRefund(uint256 tradeId) external nonReentrant {
+        _claimRefund(tradeId);
     }
 
     // Trade ID is never rescinded — trade IDs should be permanent and never reused/deleted.
     // cancelTrade should just set status = Status.Cancelled (a new enum value you'll need to add).
     // Reusing IDs risks collisions with historical events/logs referencing that ID.
-    // cancelTrade only applies to Status.Created (unfunded) trades. 
+    // cancelTrade only applies to Status.Created (unfunded) trades.
     // No money has moved yet, so there's nothing in the Vault to return.
-    function cancelTrade(uint256 tradeId) external {
+    function cancelTrade(uint256 tradeId) external nonReentrant {
         _cancelTrade(tradeId);
     }
 
@@ -204,7 +180,7 @@ contract Escrow is ReentrancyGuard, Ownable {
     ////////////////////////////////////////////////////////////////*/
     function _createTrade(address buyer, address supplier, uint256 amount, address arbiter, uint64 deadline)
         internal
-        returns (uint256)
+        returns (uint256 tradeId)
     {
         // CHECKS
         if (buyer == address(0)) {
@@ -235,7 +211,7 @@ contract Escrow is ReentrancyGuard, Ownable {
         // EFFECTS
         // t.deadline = block.timestamp + 2 days
 
-        uint256 tradeId = s_nextTradeId++; // The post-increment and pre-increment operators are implemented by reading the variable’s value before or after modifying it. i++``returns the value of ``i before incrementing, and ++i returns the value of i after incrementing.
+        tradeId = s_nextTradeId++; // The post-increment and pre-increment operators are implemented by reading the variable’s value before or after modifying it. i++``returns the value of ``i before incrementing, and ++i returns the value of i after incrementing.
         s_trades[tradeId] = Trade({
             buyer: msg.sender,
             supplier: supplier,
@@ -261,7 +237,7 @@ contract Escrow is ReentrancyGuard, Ownable {
         }
 
         Trade storage t = s_trades[tradeId];
-        
+
         if (t.status != Status.Created) {
             revert Escrow__TradeIdAlreadyFunded();
         }
@@ -270,7 +246,7 @@ contract Escrow is ReentrancyGuard, Ownable {
             revert Escrow__OnlyBuyer();
         }
         if (block.timestamp >= t.deadline) {
-            revert Escrow__TradeExpired(t.deadline); // to-do: Active TradeId 
+            revert Escrow__TradeExpired(t.deadline); // to-do: Active TradeId
         }
 
         // EFFECTS
@@ -309,7 +285,7 @@ contract Escrow is ReentrancyGuard, Ownable {
 
         emit TradeFundsReleasedToSupplier(tradeId, t.supplier, t.amount);
     }
-    
+
     function _meetTradeConditions(uint256 tradeId) internal {
         // CHECKS
         if (tradeId >= s_nextTradeId) {
@@ -339,7 +315,7 @@ contract Escrow is ReentrancyGuard, Ownable {
         // INTERACTIONS
         emit AllTradeConditionsMet(tradeId);
     }
-    
+
     function _confirmShipped(uint256 tradeId, bool shipped) internal {
         // CHECKS
         if (tradeId >= s_nextTradeId) {
@@ -426,7 +402,7 @@ contract Escrow is ReentrancyGuard, Ownable {
         // INTERACTIONS
         emit ReceivedGoodsConditionsMet(tradeId);
     }
-    
+
     function _raiseDispute(uint256 tradeId) internal {
         // CHECKS
         if (tradeId >= s_nextTradeId) {
@@ -513,9 +489,7 @@ contract Escrow is ReentrancyGuard, Ownable {
 
         // INTERACTIONS
         emit TradeCancelled(tradeId, msg.sender);
-    }    
-
-
+    }
 
     function _release(uint256 tradeId) internal {
         Trade storage t = s_trades[tradeId];
