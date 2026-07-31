@@ -28,12 +28,16 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 // Vault contract (fund custody)
 // Pure custody layer — holds the actual stablecoin balances
 // Handles deposits/withdrawals only, with strict access control (only callable by the Escrow contract or a controller role)
 // No trade logic, no conditions, no dispute state — just accounting
-contract Vault is ReentrancyGuard, Ownable {
+contract Vault is ReentrancyGuard, Ownable /*,EIP712 */{
     /*//////////////////////////////////////////////////////////////
                               ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -58,7 +62,6 @@ contract Vault is ReentrancyGuard, Ownable {
 
     address private s_escrow;
 
-    bool private s_locked;
 
     mapping(uint256 tradeId => uint256 tradeIdAmount) s_balances;
 
@@ -93,6 +96,7 @@ contract Vault is ReentrancyGuard, Ownable {
     /*//////////////////////////////////////////////////////////////
                         EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+    // mitigate with a timelock/multisig on setEscrow if time allows.
     function setEscrow(address escrow) external onlyOwner {
         if (escrow == address(0)) revert Vault__NoneZeroAddress();
 
@@ -122,7 +126,7 @@ contract Vault is ReentrancyGuard, Ownable {
 
         // INTERACTIONS
         I_TOKEN.safeTransferFrom(from, address(this), amount);
-        emit ERCTokenDeposited(msg.sender, amount);
+        emit ERCTokenDeposited(from, amount);
     }
 
     function _withdrawERC(uint256 tradeId, address to, uint256 amount) internal {
@@ -136,6 +140,6 @@ contract Vault is ReentrancyGuard, Ownable {
 
         // INTERACTIONS
         I_TOKEN.safeTransfer(to, amount);
-        emit ERCTokenWithdrawn(msg.sender, amount);
+        emit ERCTokenWithdrawn(to, amount);
     }
 }
