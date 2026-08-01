@@ -18,8 +18,8 @@ contract Escrow is ReentrancyGuard, Ownable {
                               ERRORS
     //////////////////////////////////////////////////////////////*/
     error Escrow__OnlyArbiterAddress();
-    error Escrow__InvalidSupplier();
-    error Escrow__InvalidBuyer();
+    // error Escrow__InvalidSupplier();
+    // error Escrow__InvalidBuyer();
     error Escrow__NoneZeroAddress();
     error Escrow__InvalidAmount();
     error Escrow__ArbiterShouldBeNeutralThirdParty(address arbiter);
@@ -28,7 +28,7 @@ contract Escrow is ReentrancyGuard, Ownable {
     error Escrow__TradeExpired(uint64 deadline);
     error Escrow__InvalidTradeId();
     error Escrow__TradeIdAlreadyFunded();
-    error Escrow__TradeAlreadyReleasedOrDisputed();
+    // error Escrow__TradeAlreadyReleasedOrDisputed();
     error Escrow__TradeConditionsHaveNotBeenMet();
     error Escrow__AllTradeConditionsMustBeMet();
     error Escrow__TradeIdNotFunded();
