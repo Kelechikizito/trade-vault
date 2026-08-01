@@ -181,5 +181,47 @@ contract EscrowTest is Test {
     /*//////////////////////////////////////////////////////////////
                         REVERT STATEMENT TESTS
     //////////////////////////////////////////////////////////////*/
-    
+    function testCreateTradeRevertsIfBuyerIsAddressZero() external {
+        // ARRANGE
+        uint256 tradeAmount = 10e6;
+        uint256 tradeDeadline = block.timestamp + 1 weeks;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        tradeId = escrow.createTrade(address(0), SUPPLIER, tradeAmount, ARBITER, tradeDeadline);
+    }
+
+    function testCreateTradeRevertsIfSupplierIsAddressZero() external {
+        // ARRANGE
+        uint256 tradeAmount = 10e6;
+        uint256 tradeDeadline = block.timestamp + 1 weeks;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        tradeId = escrow.createTrade(BUYER, address(0), tradeAmount, ARBITER, tradeDeadline);
+    }
+
+    function testCreateTradeRevertsIfArbiterIsAddressZero() external {
+        // ARRANGE
+        uint256 tradeAmount = 10e6;
+        uint256 tradeDeadline = block.timestamp + 1 weeks;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        tradeId = escrow.createTrade(BUYER, SUPPLIER, tradeAmount, address(0), tradeDeadline);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        FORK TESTS ON ARC TESTNET
+    //////////////////////////////////////////////////////////////*/
+
+    /*//////////////////////////////////////////////////////////////
+                         FUZZ TESTS
+    //////////////////////////////////////////////////////////////*/
 }

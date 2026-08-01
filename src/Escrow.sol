@@ -183,6 +183,7 @@ contract Escrow is ReentrancyGuard, Ownable {
         internal
         returns (uint256 tradeId)
     {
+        // check if msg.sender == buyer?
         // CHECKS
         if (buyer == address(0)) {
             revert Escrow__NoneZeroAddress();
