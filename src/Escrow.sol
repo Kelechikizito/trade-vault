@@ -25,7 +25,7 @@ contract Escrow is ReentrancyGuard, Ownable {
     error Escrow__ArbiterShouldBeNeutralThirdParty(address arbiter);
     error Escrow__OnlyBuyer();
     error Escrow__InvalidDeadline();
-    error Escrow__TradeExpired(uint64 deadline);
+    error Escrow__TradeExpired(uint256 deadline);
     error Escrow__InvalidTradeId();
     error Escrow__TradeIdAlreadyFunded();
     // error Escrow__TradeAlreadyReleasedOrDisputed();
@@ -35,7 +35,7 @@ contract Escrow is ReentrancyGuard, Ownable {
     error Escrow__ShippedConditionsNotMet();
     error Escrow__ReceivedGoodsConditionsNotMet();
     error Escrow__ClearedCustomsConditionsNotMet();
-    error Escrow__TradeNotExpired(uint64 deadline);
+    error Escrow__TradeNotExpired(uint256 deadline);
     error Escrow__NotATradeParty();
     error Escrow__TradeNotDisputable();
     error Escrow__TradeNotDisputed();
@@ -60,7 +60,7 @@ contract Escrow is ReentrancyGuard, Ownable {
         address supplier;
         address arbiter; // Mutual agreement between Buyer and Supplier at trade creation — both must agree on a neutral third party before funds move (this is how real trade finance/escrow works — an agreed inspector, chamber of commerce, or trade finance institution)
         uint256 amount;
-        uint64 deadline; // question: What exactly is this deadline supposed to protect against; late funding, late conditions met or late delivery confirmation?
+        uint256 deadline; // question: What exactly is this deadline supposed to protect against; late funding, late conditions met or late delivery confirmation?
         bool shipped;
         bool customsCleared;
         bool goodsReceived;
@@ -119,7 +119,7 @@ contract Escrow is ReentrancyGuard, Ownable {
                         EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function createTrade(address buyer, address supplier, uint256 amount, address arbiter, uint64 deadline)
+    function createTrade(address buyer, address supplier, uint256 amount, address arbiter, uint256 deadline)
         external
         nonReentrant
         returns (uint256 tradeId)
@@ -179,7 +179,7 @@ contract Escrow is ReentrancyGuard, Ownable {
     /*////////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
     ////////////////////////////////////////////////////////////////*/
-    function _createTrade(address buyer, address supplier, uint256 amount, address arbiter, uint64 deadline)
+    function _createTrade(address buyer, address supplier, uint256 amount, address arbiter, uint256 deadline)
         internal
         returns (uint256 tradeId)
     {
@@ -530,6 +530,10 @@ contract Escrow is ReentrancyGuard, Ownable {
     {
         Trade storage t = s_trades[tradeId];
         return (t.shipped, t.customsCleared, t.goodsReceived);
+    }
+
+    function getTradeStatus(uint256 tradeId) external view returns (Status) {
+        return s_trades[tradeId].status;
     }
 
     // getDisputeStatus(tradeId)

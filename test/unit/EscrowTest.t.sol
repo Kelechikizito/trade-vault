@@ -5,8 +5,14 @@ import {Test, console2} from "forge-std/Test.sol";
 import {Escrow} from "src/Escrow.sol";
 import {Vault} from "src/Vault.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+
 
 contract EscrowTest is Test {
+    using SafeERC20 for IERC20;
+
     Escrow escrow;
     Vault vault;
     ERC20Mock usdc;
@@ -21,7 +27,7 @@ contract EscrowTest is Test {
     uint256 OWNER_USDC_BALANCE = 10_000e6;
     uint256 OWNER_ETH_BALANCE = 1 ether;
 
-    uint256 BUYER_USDC_BALANCE = 10_000e6;
+    uint256 BUYER_USDC_BALANCE = 100_000e6;
     uint256 BUYER_ETH_BALANCE = 1 ether;
 
     uint256 SUPPLIER_USDC_BALANCE = 10_000e6;
@@ -30,17 +36,150 @@ contract EscrowTest is Test {
     uint256 ARBITER_USDC_BALANCE = 10_000e6;
     uint256 ARBITER_ETH_BALANCE = 1 ether;
 
+    uint256 tradeId;
+
     function setUp() public {
         usdc = new ERC20Mock();
         
         vm.prank(OWNER);
         vault = new Vault(address(usdc), PLACEHOLDER);
+
+
         vm.prank(OWNER);
         escrow = new Escrow(address(vault));
-    }
 
-    function testChangeEscrowAddressFromPlaceholderToActual() external {
         vm.prank(OWNER);
         vault.setEscrow(address(escrow));
+
+        deal(address(usdc), BUYER, BUYER_USDC_BALANCE);
     }
+
+    
+    /*//////////////////////////////////////////////////////////////
+                            HAPPY PATH TESTS
+    //////////////////////////////////////////////////////////////*/
+    function testCreateTradeIsSuccessful() external {
+        // ARRANGE
+        uint256 tradeAmount = 10e6;
+        uint256 tradeDeadline = block.timestamp + 1 weeks;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT
+        vm.prank(BUYER);
+        tradeId = escrow.createTrade(BUYER, SUPPLIER, tradeAmount, ARBITER, tradeDeadline);
+
+        // ASSERT
+        assertEq(tradeId, 0);
+
+    }
+
+    modifier createTradeSuccessfully() {
+        // ARRANGE
+        uint256 tradeAmount = 10e6;
+        uint256 tradeDeadline = block.timestamp + 1 weeks;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT
+        vm.prank(BUYER);
+        tradeId = escrow.createTrade(BUYER, SUPPLIER, tradeAmount, ARBITER, tradeDeadline);
+        _;
+    }
+
+    function testFundTradeIsSuccessful() external createTradeSuccessfully() {
+        // ARRANGE
+
+        // ACT
+        vm.prank(BUYER);
+        IERC20(address(usdc)).forceApprove(address(vault), BUYER_USDC_BALANCE);
+
+        vm.prank(BUYER);
+        escrow.fundTrade(tradeId);
+
+        // ASSERT
+        assertEq(uint8(escrow.getTradeStatus(tradeId)), uint8(Escrow.Status.Funded));
+    }
+
+    modifier createAndFundTradeSuccessfully() {
+        // ARRANGE
+        uint256 tradeAmount = 10e6;
+        uint256 tradeDeadline = block.timestamp + 1 weeks;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT
+        vm.prank(BUYER);
+        tradeId = escrow.createTrade(BUYER, SUPPLIER, tradeAmount, ARBITER, tradeDeadline);
+
+        vm.prank(BUYER);
+        IERC20(address(usdc)).forceApprove(address(vault), BUYER_USDC_BALANCE);
+
+        vm.prank(BUYER);
+        escrow.fundTrade(tradeId);
+        _;
+    }
+
+    function testMeetTradeConditionsIsSuccessful() external createAndFundTradeSuccessfully() {
+        // ARRANGE
+
+        // ACT
+        vm.prank(ARBITER);
+        escrow.confirmGoodsReceived(tradeId, true);
+        vm.prank(ARBITER);
+        escrow.confirmCustomsCleared(tradeId, true);
+        vm.prank(ARBITER);
+        escrow.confirmShipped(tradeId, true);
+
+        vm.prank(ARBITER);
+        escrow.meetTradeConditions(tradeId);
+
+        // ASSERT
+        assertEq(uint8(escrow.getTradeStatus(tradeId)), uint8(Escrow.Status.ConditionsMet));
+
+    }
+
+    modifier meetTradeConditionsSuccessfully() {
+        // ARRANGE
+        uint256 tradeAmount = 10e6;
+        uint256 tradeDeadline = block.timestamp + 1 weeks;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT
+        vm.prank(BUYER);
+        tradeId = escrow.createTrade(BUYER, SUPPLIER, tradeAmount, ARBITER, tradeDeadline);
+
+        vm.prank(BUYER);
+        IERC20(address(usdc)).forceApprove(address(vault), BUYER_USDC_BALANCE);
+
+        vm.prank(BUYER);
+        escrow.fundTrade(tradeId);
+
+        vm.prank(ARBITER);
+        escrow.confirmGoodsReceived(tradeId, true);
+        vm.prank(ARBITER);
+        escrow.confirmCustomsCleared(tradeId, true);
+        vm.prank(ARBITER);
+        escrow.confirmShipped(tradeId, true);
+
+        vm.prank(ARBITER);
+        escrow.meetTradeConditions(tradeId);
+        _;
+    }
+
+    function testConfirmDeliveryIsSuccessful() external meetTradeConditionsSuccessfully() {
+        // ARRANGE
+        uint256 tradeAmount = 10e6;
+
+        // ACT
+        vm.prank(ARBITER);
+        escrow.confirmDelivery(tradeId);
+
+        // ASSERT
+        assertEq(usdc.balanceOf(SUPPLIER), tradeAmount);
+        console2.log("Supplier has successfully recieved payment for the goods supplied to the buyer");
+        console2.log("Supplier recieved", (tradeAmount / 1e6), "USDC, after successful delivery confirmation by the third-party arbiter.");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        REVERT STATEMENT TESTS
+    //////////////////////////////////////////////////////////////*/
+    
 }
