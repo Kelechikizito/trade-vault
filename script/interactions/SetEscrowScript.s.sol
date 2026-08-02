@@ -6,17 +6,16 @@ import {Escrow} from "src/Escrow.sol";
 import {Vault} from "src/Vault.sol";
 import {DevOpsTools} from "foundry-devops/src/DevOpsTools.sol";
 
-contract DeployEscrowScript is Script {
+contract SetEscrowScript is Script {
     // address mostRecentlyDeployed = DevOpsTools.get_most_recent_deployment("Vault", block.chainid);
-    
-    function run(address vaultAddress) public returns (Escrow) {
-        return deployEscrow(vaultAddress);
+
+    function run(address vaultAddress, address escrowAddress) public {
+        setEscrow(vaultAddress, escrowAddress);
     }
 
-    function deployEscrow(address vaultAddress) public returns (Escrow) {
+    function setEscrow(address vaultAddress, address escrowAddress) public {
         vm.startBroadcast();
-        Escrow escrow = new Escrow(vaultAddress);
+        Vault(vaultAddress).setEscrow(escrowAddress);
         vm.stopBroadcast();
-        return escrow;
     }
 }
