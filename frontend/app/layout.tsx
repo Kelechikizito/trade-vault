@@ -1,7 +1,11 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { WalletProvider } from "@/lib/wallet-context";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+import { Providers } from "@/app/providers";
+
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "TradeVault - Decentralized Trade Finance",
@@ -40,12 +44,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="bg-background">
+    <html
+      lang="en"
+      className={cn("bg-background", "font-sans", geist.variable)}
+    >
       <body className="antialiased">
-        <WalletProvider>
+        <Providers>
           {children}
           {process.env.NODE_ENV === "production" && <Analytics />}
-        </WalletProvider>
+        </Providers>
       </body>
     </html>
   );

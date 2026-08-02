@@ -2,7 +2,7 @@
 
 import { useWallet } from "@/lib/wallet-context";
 
-export function WalletButton() {
+export function ConnectButton() {
   const { address, isConnected, connect, disconnect } = useWallet();
 
   const displayAddress = address

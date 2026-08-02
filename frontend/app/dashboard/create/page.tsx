@@ -3,13 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useWallet } from "@/lib/wallet-context";
+// import { useWallet } from "@/lib/wallet-context";
+import { useAccount } from "wagmi";
 import { createTrade } from "@/lib/mock-contract";
-import { WalletButton } from "@/components/wallet-button";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 export default function CreateTradePage() {
   const router = useRouter();
-  const { address, isConnected } = useWallet();
+  const { address, isConnected } = useAccount();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     supplier: "",
@@ -61,7 +62,7 @@ export default function CreateTradePage() {
                 TradeVault
               </div>
             </Link>
-            <WalletButton />
+            <ConnectButton />
           </div>
         </header>
         <div className="max-w-6xl mx-auto px-4 py-20 text-center">
@@ -83,7 +84,7 @@ export default function CreateTradePage() {
               TradeVault
             </div>
           </Link>
-          <WalletButton />
+          <ConnectButton />
         </div>
       </header>
 

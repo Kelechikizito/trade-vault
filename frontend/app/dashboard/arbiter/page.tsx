@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useWallet } from "@/lib/wallet-context";
+// import { useWallet } from "@/lib/wallet-context";
+import { useAccount } from "wagmi";
 import { getAllTrades } from "@/lib/mock-contract";
 import { Trade } from "@/lib/types";
 import { TradeCard } from "@/components/trade-card";
-import { WalletButton } from "@/components/wallet-button";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 export default function ArbiterDashboardPage() {
-  const { address, isConnected } = useWallet();
+  const { address, isConnected } = useAccount();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [arbiterTrades, setArbiterTrades] = useState<Trade[]>([]);
   const [needsAction, setNeedsAction] = useState<Trade[]>([]);
@@ -44,7 +45,7 @@ export default function ArbiterDashboardPage() {
                 TradeVault
               </div>
             </Link>
-            <WalletButton />
+            <ConnectButton />
           </div>
         </header>
         <div className="max-w-6xl mx-auto px-4 py-20 text-center">
@@ -72,7 +73,7 @@ export default function ArbiterDashboardPage() {
                 My Trades
               </button>
             </Link>
-            <WalletButton />
+            <ConnectButton />
           </div>
         </div>
       </header>

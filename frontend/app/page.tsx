@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { WalletButton } from "@/components/wallet-button";
-import { useWallet } from "@/lib/wallet-context";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+// import { useWallet } from "@/lib/wallet-context";
+import { useAccount } from "wagmi";
 
 export default function Page() {
-  const { isConnected } = useWallet();
+  const { isConnected } = useAccount();
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
@@ -13,7 +14,7 @@ export default function Page() {
       <header className="sticky top-0 z-50 backdrop-blur-md bg-background/80 border-b border-border">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="text-2xl font-bold text-primary">TradeVault</div>
-          <WalletButton />
+          <ConnectButton />
         </div>
       </header>
 

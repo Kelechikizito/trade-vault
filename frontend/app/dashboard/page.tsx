@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useWallet } from "@/lib/wallet-context";
+// import { useWallet } from "@/lib/wallet-context";
+import { useAccount } from "wagmi";
 import { getAllTrades, initializeMockData } from "@/lib/mock-contract";
 import { Trade, UserRole } from "@/lib/types";
 import { TradeCard } from "@/components/trade-card";
-import { WalletButton } from "@/components/wallet-button";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 export default function DashboardPage() {
-  const { address, isConnected } = useWallet();
+  const { isConnected } = useAccount();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [userRole, setUserRole] = useState<UserRole>("none");
 
@@ -37,7 +38,7 @@ export default function DashboardPage() {
                 TradeVault
               </div>
             </Link>
-            <WalletButton />
+            <ConnectButton />
           </div>
         </header>
         <div className="max-w-6xl mx-auto px-4 py-20 text-center">
@@ -72,7 +73,7 @@ export default function DashboardPage() {
                 New Trade
               </button>
             </Link>
-            <WalletButton />
+            <ConnectButton />
           </div>
         </div>
       </header>
