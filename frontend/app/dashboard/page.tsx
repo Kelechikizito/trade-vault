@@ -10,7 +10,7 @@ import { TradeCard } from "@/components/trade-card";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 export default function DashboardPage() {
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [userRole, setUserRole] = useState<UserRole>("none");
 
