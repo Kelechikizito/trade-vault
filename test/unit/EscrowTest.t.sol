@@ -16,6 +16,7 @@ contract EscrowTest is Test {
     Escrow escrow;
     Vault vault;
     ERC20Mock usdc;
+    uint256 arcTestnetFork;
 
     address public OWNER = makeAddr("owner");
     address public BUYER = makeAddr("buyer");
@@ -220,6 +221,79 @@ contract EscrowTest is Test {
     /*//////////////////////////////////////////////////////////////
                         FORK TESTS ON ARC TESTNET
     //////////////////////////////////////////////////////////////*/
+    function testDeployVaultAndEscrowOnArcTestnet() external {
+        // ARRANGE
+        //@notice create a fork of Arc Testnet network
+        arcTestnetFork = vm.createSelectFork("arc_testnet");
+
+        // ACT
+        vm.prank(OWNER);
+        vault = new Vault(address(usdc), PLACEHOLDER);
+
+
+        vm.prank(OWNER);
+        escrow = new Escrow(address(vault));
+
+        vm.prank(OWNER);
+        vault.setEscrow(address(escrow));
+        // ASSERT
+
+    }
+
+    modifier meetTradeConditionsSuccessfullyOnArc() {
+        // ARRANGE
+        arcTestnetFork = vm.createSelectFork("arc_testnet");
+
+        uint256 tradeAmount = 10e6;
+        uint256 tradeDeadline = block.timestamp + 1 weeks;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT
+        vm.prank(OWNER);
+        vault = new Vault(address(usdc), PLACEHOLDER);
+
+
+        vm.prank(OWNER);
+        escrow = new Escrow(address(vault));
+
+        vm.prank(OWNER);
+        vault.setEscrow(address(escrow));
+        
+        vm.prank(BUYER);
+        tradeId = escrow.createTrade(BUYER, SUPPLIER, tradeAmount, ARBITER, tradeDeadline);
+
+        vm.prank(BUYER);
+        IERC20(address(usdc)).forceApprove(address(vault), BUYER_USDC_BALANCE);
+
+        vm.prank(BUYER);
+        escrow.fundTrade(tradeId);
+
+        vm.prank(ARBITER);
+        escrow.confirmGoodsReceived(tradeId, true);
+        vm.prank(ARBITER);
+        escrow.confirmCustomsCleared(tradeId, true);
+        vm.prank(ARBITER);
+        escrow.confirmShipped(tradeId, true);
+
+        vm.prank(ARBITER);
+        escrow.meetTradeConditions(tradeId);
+        _;
+    }
+
+    function testConfirmDeliveryIsSuccessfulOnArc() external meetTradeConditionsSuccessfullyOnArc() {
+        // ARRANGE
+        arcTestnetFork = vm.createSelectFork("arc_testnet");
+        uint256 tradeAmount = 10e6;
+
+        // ACT
+        vm.prank(ARBITER);
+        escrow.confirmDelivery(tradeId);
+
+        // ASSERT
+        assertEq(usdc.balanceOf(SUPPLIER), tradeAmount);
+        console2.log("Supplier has successfully recieved payment for the goods supplied to the buyer");
+        console2.log("Supplier recieved", (tradeAmount / 1e6), "USDC, after successful delivery confirmation by the third-party arbiter.");
+    }
 
     /*//////////////////////////////////////////////////////////////
                          FUZZ TESTS
