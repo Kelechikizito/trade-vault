@@ -218,6 +218,112 @@ contract EscrowTest is Test {
         tradeId = escrow.createTrade(BUYER, SUPPLIER, tradeAmount, address(0), tradeDeadline);
     }
 
+    function testCreateTradeRevertsIfTradeAmountIsZero() external {
+        // ARRANGE
+        uint256 tradeAmount = 0;
+        uint256 tradeDeadline = block.timestamp + 1 weeks;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        tradeId = escrow.createTrade(BUYER, SUPPLIER, tradeAmount, ARBITER, tradeDeadline);
+    }
+
+    function testCreateTradeRevertsIfTradeDeadlineIsInThePast() external {
+        // ARRANGE
+        uint256 tradeAmount = 10e6;
+        uint256 tradeDeadline = block.timestamp - 1;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        tradeId = escrow.createTrade(BUYER, SUPPLIER, tradeAmount, ARBITER, tradeDeadline);
+    }
+
+    function testCreateTradeRevertsIfSupplierIsBuyer() external {
+        // ARRANGE
+        uint256 tradeAmount = 10e6;
+        uint256 tradeDeadline = block.timestamp + 1 weeks;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        tradeId = escrow.createTrade(BUYER, BUYER, tradeAmount, ARBITER, tradeDeadline);
+    }
+
+    function testCreateTradeRevertsIfArbiterIsBuyer() external {
+        // ARRANGE
+        uint256 tradeAmount = 10e6;
+        uint256 tradeDeadline = block.timestamp + 1 weeks;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        tradeId = escrow.createTrade(BUYER, SUPPLIER, tradeAmount, BUYER, tradeDeadline);
+    }
+
+    function testCreateTradeRevertsIfArbiterIsSupplier() external {
+        // ARRANGE
+        uint256 tradeAmount = 10e6;
+        uint256 tradeDeadline = block.timestamp + 1 weeks;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        tradeId = escrow.createTrade(BUYER, SUPPLIER, tradeAmount, SUPPLIER, tradeDeadline);
+    }
+
+    function testCreateTradeRevertsIfBuyerNotMsgSender() external {
+        // ARRANGE
+        uint256 tradeAmount = 10e6;
+        uint256 tradeDeadline = block.timestamp + 1 weeks;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT & ASSERT
+        vm.prank(SUPPLIER);
+        vm.expectRevert();
+        tradeId = escrow.createTrade(BUYER, SUPPLIER, tradeAmount, ARBITER, tradeDeadline);
+    }
+
+    function testFundTradeRevertsIfInvalidTradeId() external {
+        // ARRANGE
+        uint256 invalidTradeId = 999;
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        escrow.fundTrade(invalidTradeId);
+    }
+
+    function testFundTradeRevertsIfTradeAlreadyFunded() external createAndFundTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        escrow.fundTrade(tradeId);
+    }
+
+    function testFundTradeRevertsIfMsgSenderIsNotBuyer() external createTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(SUPPLIER);
+        vm.expectRevert();
+        escrow.fundTrade(tradeId);
+    }
+
+    function testFundTradeRevertsIfDeadlineHasPassed() external createTradeSuccessfully() {
+        // ARRANGE
+        vm.warp(block.timestamp + 2 weeks);
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        escrow.fundTrade(tradeId);
+    }
+
     /*//////////////////////////////////////////////////////////////
                         FORK TESTS ON ARC TESTNET
     //////////////////////////////////////////////////////////////*/
