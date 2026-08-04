@@ -449,6 +449,76 @@ contract EscrowTest is Test {
         escrow.confirmShipped(tradeId, false);
     }
 
+    function testMeetTradeConditionsRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully() {
+        // ARRANGE
+        uint256 invalidTradeId = 999;
+
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.meetTradeConditions(invalidTradeId);
+    }
+
+    function testMeetTradeConditionsRevertsIfMsgSenderIsNotArbiter() external createAndFundTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(SUPPLIER);
+        vm.expectRevert();
+        escrow.meetTradeConditions(tradeId);
+    }
+
+    function testMeetTradeConditionsRevertsIfTradeNotFunded() external createTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.meetTradeConditions(tradeId);
+    }
+
+    function testMeetTradeConditionsRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully() {
+        // ARRANGE
+        vm.warp(block.timestamp + 2 weeks);
+
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.meetTradeConditions(tradeId);
+    }
+
+    function testMeetTradeConditionsRevertsIfNotAllConditionsMet() external createAndFundTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.meetTradeConditions(tradeId);
+    }
+
+    function testConfirmDeliveryRevertsIfInvalidTradeId() external meetTradeConditionsSuccessfully() {
+        // ARRANGE
+        uint256 invalidTradeId = 999;
+
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.confirmDelivery(invalidTradeId);
+    }
+
+    function testConfirmDeliveryRevertsIfMsgSenderIsNotArbiter() external meetTradeConditionsSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(SUPPLIER);
+        vm.expectRevert();
+        escrow.confirmDelivery(tradeId);
+    }
+
+    function testConfirmDeliveryRevertsIfTradeConditionsNotMet() external createAndFundTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.confirmDelivery(tradeId);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            EDGE CASES TESTS
+    //////////////////////////////////////////////////////////////*/
+
+
 
     /*//////////////////////////////////////////////////////////////
                         FORK TESTS ON ARC TESTNET
