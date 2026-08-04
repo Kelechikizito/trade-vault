@@ -324,6 +324,132 @@ contract EscrowTest is Test {
         escrow.fundTrade(tradeId);
     }
 
+
+    function testConfirmGoodsReceivedRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully() {
+        // ARRANGE
+        uint256 invalidTradeId = 999;
+
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.confirmGoodsReceived(invalidTradeId, true);
+    }
+
+    function testConfirmGoodsReceivedRevertsIfMsgSenderIsNotArbiter() external createAndFundTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(SUPPLIER);
+        vm.expectRevert();
+        escrow.confirmGoodsReceived(tradeId, true);
+    }
+
+    function testConfirmGoodsReceivedRevertsIfTradeNotFunded() external createTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.confirmGoodsReceived(tradeId, true);
+    }
+
+    function testConfirmGoodsReceivedRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully() {
+        // ARRANGE
+        vm.warp(block.timestamp + 2 weeks);
+
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.confirmGoodsReceived(tradeId, true);
+    }
+
+    function testConfirmGoodsReceivedRevertsIfNotConfirmed() external createAndFundTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.confirmGoodsReceived(tradeId, false);
+    }
+
+
+    function testConfirmCustomsClearedRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully() {
+        // ARRANGE
+        uint256 invalidTradeId = 999;
+
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.confirmCustomsCleared(invalidTradeId, true);
+    }
+
+    function testConfirmCustomsClearedRevertsIfMsgSenderIsNotArbiter() external createAndFundTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(SUPPLIER);
+        vm.expectRevert();
+        escrow.confirmCustomsCleared(tradeId, true);
+    }
+
+    function testConfirmCustomsClearedRevertsIfTradeNotFunded() external createTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.confirmCustomsCleared(tradeId, true);
+    }
+
+    function testConfirmCustomsClearedRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully() {
+        // ARRANGE
+        vm.warp(block.timestamp + 2 weeks);
+
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.confirmCustomsCleared(tradeId, true);
+    }
+
+    function testConfirmCustomsClearedRevertsIfNotConfirmed() external createAndFundTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.confirmCustomsCleared(tradeId, false);
+    }
+
+    function testConfirmShippedRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully() {
+        // ARRANGE
+        uint256 invalidTradeId = 999;
+
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.confirmShipped(invalidTradeId, true);
+    }
+
+    function testConfirmShippedRevertsIfMsgSenderIsNotArbiter() external createAndFundTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(SUPPLIER);
+        vm.expectRevert();
+        escrow.confirmShipped(tradeId, true);
+    }
+
+    function testConfirmShippedRevertsIfTradeNotFunded() external createTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.confirmShipped(tradeId, true);
+    }
+
+    function testConfirmShippedRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully() {
+        // ARRANGE
+        vm.warp(block.timestamp + 2 weeks);
+
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.confirmShipped(tradeId, true);
+    }
+
+    function testConfirmShippedRevertsIfNotConfirmed() external createAndFundTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.confirmShipped(tradeId, false);
+    }
+
+
     /*//////////////////////////////////////////////////////////////
                         FORK TESTS ON ARC TESTNET
     //////////////////////////////////////////////////////////////*/
