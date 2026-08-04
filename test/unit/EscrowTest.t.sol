@@ -240,13 +240,15 @@ contract EscrowTest is Test {
 
     }
 
-    modifier meetTradeConditionsSuccessfullyOnArc() {
+    function testConfirmDeliveryIsSuccessfulOnArc() external {
         // ARRANGE
         arcTestnetFork = vm.createSelectFork("arc_testnet");
-
         uint256 tradeAmount = 10e6;
+        usdc = new ERC20Mock();
+
         uint256 tradeDeadline = block.timestamp + 1 weeks;
         vm.deal(BUYER, BUYER_ETH_BALANCE);
+        deal(address(usdc), BUYER, BUYER_USDC_BALANCE);
 
         // ACT
         vm.prank(OWNER);
@@ -277,21 +279,12 @@ contract EscrowTest is Test {
 
         vm.prank(ARBITER);
         escrow.meetTradeConditions(tradeId);
-        _;
-    }
-
-    function testConfirmDeliveryIsSuccessfulOnArc() external meetTradeConditionsSuccessfullyOnArc() {
-        // ARRANGE
-        arcTestnetFork = vm.createSelectFork("arc_testnet");
-        uint256 tradeAmount = 10e6;
-
-        // ACT
         vm.prank(ARBITER);
         escrow.confirmDelivery(tradeId);
 
         // ASSERT
         assertEq(usdc.balanceOf(SUPPLIER), tradeAmount);
-        console2.log("Supplier has successfully recieved payment for the goods supplied to the buyer");
+        console2.log("Supplier has successfully recieved payment for the goods supplied to the buyer on the Arc Testnet network");
         console2.log("Supplier recieved", (tradeAmount / 1e6), "USDC, after successful delivery confirmation by the third-party arbiter.");
     }
 
