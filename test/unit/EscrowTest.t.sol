@@ -179,6 +179,37 @@ contract EscrowTest is Test {
         console2.log("Supplier recieved", (tradeAmount / 1e6), "USDC, after successful delivery confirmation by the third-party arbiter.");
     }
 
+    modifier confirmDeliverySuccessfully() {
+        // ARRANGE
+        uint256 tradeAmount = 10e6;
+        uint256 tradeDeadline = block.timestamp + 1 weeks;
+        vm.deal(BUYER, BUYER_ETH_BALANCE);
+
+        // ACT
+        vm.prank(BUYER);
+        tradeId = escrow.createTrade(BUYER, SUPPLIER, tradeAmount, ARBITER, tradeDeadline);
+
+        vm.prank(BUYER);
+        IERC20(address(usdc)).forceApprove(address(vault), BUYER_USDC_BALANCE);
+
+        vm.prank(BUYER);
+        escrow.fundTrade(tradeId);
+
+        vm.prank(ARBITER);
+        escrow.confirmGoodsReceived(tradeId, true);
+        vm.prank(ARBITER);
+        escrow.confirmCustomsCleared(tradeId, true);
+        vm.prank(ARBITER);
+        escrow.confirmShipped(tradeId, true);
+
+        vm.prank(ARBITER);
+        escrow.meetTradeConditions(tradeId);
+
+        vm.prank(ARBITER);
+        escrow.confirmDelivery(tradeId);
+        _;
+    }
+
     /*//////////////////////////////////////////////////////////////
                         REVERT STATEMENT TESTS
     //////////////////////////////////////////////////////////////*/
@@ -517,8 +548,43 @@ contract EscrowTest is Test {
     /*//////////////////////////////////////////////////////////////
                             EDGE CASES TESTS
     //////////////////////////////////////////////////////////////*/
+    function testRaiseAndResolveDisputeToSupplierWorks() external meetTradeConditionsSuccessfully() {
+        // ARRANGE
+        
+        // ACT
+        vm.prank(BUYER);
+        escrow.raiseDispute(tradeId);
+        vm.prank(ARBITER);
+        escrow.resolveDispute(tradeId, true);
 
+        // ASSERT
+    }
 
+    function testRaiseAndResolveDisputeToBuyerWorks() external meetTradeConditionsSuccessfully() {
+        // ARRANGE
+        
+        // ACT
+        vm.prank(BUYER);
+        escrow.raiseDispute(tradeId);
+        vm.prank(ARBITER);
+        escrow.resolveDispute(tradeId, false);
+
+        // ASSERT
+    }
+
+    function claimRefundWorks() external meetTradeConditionsSuccessfully() {
+        // ARRANGE
+        vm.prank(BUYER);
+        escrow.raiseDispute(tradeId);
+        vm.prank(ARBITER);
+        escrow.resolveDispute(tradeId, false);
+
+        // ACT
+        vm.prank(BUYER);
+        escrow.claimRefund(tradeId);
+
+        // ASSERT
+    }
 
     /*//////////////////////////////////////////////////////////////
                         FORK TESTS ON ARC TESTNET
