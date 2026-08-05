@@ -572,12 +572,13 @@ contract EscrowTest is Test {
         // ASSERT
     }
 
-    function claimRefundWorks() external meetTradeConditionsSuccessfully() {
+    function testClaimRefundWorks() external createAndFundTradeSuccessfully() {
         // ARRANGE
-        vm.prank(BUYER);
-        escrow.raiseDispute(tradeId);
-        vm.prank(ARBITER);
-        escrow.resolveDispute(tradeId, false);
+        // vm.prank(BUYER);
+        // escrow.raiseDispute(tradeId);
+        // vm.prank(ARBITER);
+        // escrow.resolveDispute(tradeId, false);
+        vm.warp(block.timestamp + 2 weeks);
 
         // ACT
         vm.prank(BUYER);
@@ -711,6 +712,61 @@ contract EscrowTest is Test {
         vm.expectRevert();
         escrow.cancelTrade(invalidTradeId);
     }
+
+    function testCancelTradeRevertsIfNotBuyer() external createTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(SUPPLIER);
+        vm.expectRevert();
+        escrow.cancelTrade(tradeId);
+    }
+
+    function testCancelTradeRevertsIfTradeAlreadyFunded() external createAndFundTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        escrow.cancelTrade(tradeId);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        GETTER FUNCTIONS TESTS
+    //////////////////////////////////////////////////////////////*/
+    function testGetTradeArbiterReturnsCorrectAddress() external createAndFundTradeSuccessfully() {
+        // ACT
+        address arbiter = escrow.getTradeArbiter(tradeId);
+
+        // ASSERT
+        assertEq(arbiter, ARBITER);
+    }
+
+    function testGetTradeConditionsReturnsCorrectValues() external createAndFundTradeSuccessfully() {
+        // ACT
+        (bool goodsReceived, bool customsCleared, bool shipped) = escrow.getTradeConditions(tradeId);
+
+        // ASSERT
+        assertEq(goodsReceived, false);
+        assertEq(customsCleared, false);
+        assertEq(shipped, false);
+    }
+
+    function testGetTradeStatusReturnsCorrectValue() external createAndFundTradeSuccessfully() {
+        // ACT
+        Escrow.Status status = escrow.getTradeStatus(tradeId);
+
+        // ASSERT
+        assertEq(uint8(status), uint8(Escrow.Status.Funded));
+    }
+
+    function testGetTradeDetailsReturnsCorrectValues() external createAndFundTradeSuccessfully() {
+        // ACT
+        Escrow.Trade memory trade = escrow.getTrade(tradeId);
+
+        // ASSERT
+        assertEq(trade.buyer, BUYER);
+        assertEq(trade.supplier, SUPPLIER);
+        assertEq(trade.amount, 10e6);
+        assertEq(trade.deadline, block.timestamp + 1 weeks);
+    }
+
 
     /*//////////////////////////////////////////////////////////////
                         FORK TESTS ON ARC TESTNET
