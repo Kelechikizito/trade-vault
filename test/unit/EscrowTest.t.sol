@@ -598,6 +598,121 @@ contract EscrowTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
+                        EDGE CASES REVERT TESTS
+    //////////////////////////////////////////////////////////////*/
+    function testRaiseDisputeRevertsIfTradeNotFunded() external createTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        escrow.raiseDispute(tradeId);
+    }
+
+    function testResolveDisputeRevertsIfTradeNotFunded() external createTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.resolveDispute(tradeId, true);
+    }
+
+    function testRaiseDisputeRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully() {
+        // ARRANGE
+        uint256 invalidTradeId = 999;
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        escrow.raiseDispute(invalidTradeId);
+    }
+
+    function testResolveDisputeRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully() {
+        // ARRANGE
+        uint256 invalidTradeId = 999;
+
+        // ACT & ASSERT
+        vm.prank(ARBITER);
+        vm.expectRevert();
+        escrow.resolveDispute(invalidTradeId, true);
+    }
+
+    function testRaiseDisputeRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully() {
+        // ARRANGE
+        vm.warp(block.timestamp + 2 weeks);
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        escrow.raiseDispute(tradeId);
+    }
+
+    function testResolveDisputeRevertsIfNotArbiter() external createAndFundTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(SUPPLIER);
+        vm.expectRevert();
+        escrow.resolveDispute(tradeId, true);
+    }
+
+
+    function testClaimRefundRevertsIfNotBuyer() external meetTradeConditionsSuccessfully() {
+        // ARRANGE
+        vm.prank(BUYER);
+        escrow.raiseDispute(tradeId);
+        vm.prank(ARBITER);
+        escrow.resolveDispute(tradeId, false);
+
+        // ACT & ASSERT
+        vm.prank(SUPPLIER);
+        vm.expectRevert();
+        escrow.claimRefund(tradeId);
+    }
+
+    function testClaimRefundRevertsIfInvalidTradeId() external meetTradeConditionsSuccessfully() {
+        // ARRANGE
+        vm.prank(BUYER);
+        escrow.raiseDispute(tradeId);
+        vm.prank(ARBITER);
+        escrow.resolveDispute(tradeId, false);
+
+        uint256 invalidTradeId = 999;
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        escrow.claimRefund(invalidTradeId);
+    }
+
+    function testClaimRefundRevertsIfTradeNotFunded() external createTradeSuccessfully() {
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        escrow.claimRefund(tradeId);
+    }
+
+    function testClaimRefundRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully() {
+        // ARRANGE
+        // vm.prank(BUYER);
+        // escrow.raiseDispute(tradeId);
+        // vm.prank(ARBITER);
+        // escrow.resolveDispute(tradeId, false);
+
+        vm.warp(block.timestamp - 1);
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        escrow.claimRefund(tradeId);
+    }
+
+    function testCancelTradeRevertsIfInvalidTradeId() external createTradeSuccessfully() {
+        // ARRANGE
+        uint256 invalidTradeId = 999;
+
+        // ACT & ASSERT
+        vm.prank(BUYER);
+        vm.expectRevert();
+        escrow.cancelTrade(invalidTradeId);
+    }
+
+    /*//////////////////////////////////////////////////////////////
                         FORK TESTS ON ARC TESTNET
     //////////////////////////////////////////////////////////////*/
     function testDeployVaultAndEscrowOnArcTestnet() external {
