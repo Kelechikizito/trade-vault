@@ -586,6 +586,17 @@ contract EscrowTest is Test {
         // ASSERT
     }
 
+    function testCancelTradeWorks() external createTradeSuccessfully() {
+        // ARRANGE
+
+        // ACT
+        vm.prank(BUYER);
+        escrow.cancelTrade(tradeId);
+
+        // ASSERT
+
+    }
+
     /*//////////////////////////////////////////////////////////////
                         FORK TESTS ON ARC TESTNET
     //////////////////////////////////////////////////////////////*/
