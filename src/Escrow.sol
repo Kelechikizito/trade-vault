@@ -37,23 +37,35 @@ contract Escrow is ReentrancyGuard, Ownable {
     error Escrow__InvalidTradeId();
     /// @dev This error is thrown when the tradeId has already been funded and the operation demands it be unfunded.
     error Escrow__TradeIdAlreadyFunded();
-    /// @dev This 
+    /// @dev This error is thrown when the trade conditions have not been met and the operation demands they be met.
     error Escrow__TradeConditionsHaveNotBeenMet();
+    /// @dev This error is thrown when the trade conditions have not been met and the operation demands they be met.
     error Escrow__AllTradeConditionsMustBeMet();
+    /// @dev This error is thrown when the tradeId has not been funded and the operation demands it be funded.
     error Escrow__TradeIdNotFunded();
+    /// @dev This error is thrown when the tradeId shipped conditions are not met.
     error Escrow__ShippedConditionsNotMet();
+    /// @dev This error is thrown when the tradeId received goods conditions are not met.
     error Escrow__ReceivedGoodsConditionsNotMet();
+    /// @dev This error is thrown when the tradeId cleared customs conditions are not met.
     error Escrow__ClearedCustomsConditionsNotMet();
+    /// @dev This error is thrown when the tradeId is not expired.
     error Escrow__TradeNotExpired(uint256 deadline);
+    /// @dev This error is thrown when the msg.sender is not a party to the trade.
     error Escrow__NotATradeParty();
+    /// @dev This error is thrown when the trade is not disputable.
     error Escrow__TradeNotDisputable();
+    /// @dev This error is thrown when the trade is not disputed.
     error Escrow__TradeNotDisputed();
+    /// @dev This error is thrown when the trade is not cancellable.
     error Escrow__TradeNotCancellable();
+    /// @dev This error is thrown when the buyer and supplier addresses are the same.
     error Escrow__DifferentAddressesForBuyerAndSupplier();
 
     /*//////////////////////////////////////////////////////////////
                             TYPE DECLARATIONS
     //////////////////////////////////////////////////////////////*/
+    /// @dev The Status enum represents the different states a trade can be in throughout its lifecycle. Each state corresponds to a specific stage in the trade process, from creation to completion or cancellation.
     enum Status {
         Created,
         Funded,
@@ -64,6 +76,7 @@ contract Escrow is ReentrancyGuard, Ownable {
         Released
     }
 
+    /// @dev The Trade struct represents a trade between a buyer and a supplier, with an arbiter overseeing the process. It contains information about the parties involved, the amount of the trade, the deadline for completion, and various conditions that must be met for the trade to proceed. The status of the trade is also tracked using the Status enum.
     struct Trade {
         address buyer;
         address supplier;
