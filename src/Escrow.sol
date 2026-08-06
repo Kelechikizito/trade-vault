@@ -69,7 +69,7 @@ contract Escrow is ReentrancyGuard, Ownable {
         address supplier;
         address arbiter; // Mutual agreement between Buyer and Supplier at trade creation — both must agree on a neutral third party before funds move (this is how real trade finance/escrow works — an agreed inspector, chamber of commerce, or trade finance institution)
         uint256 amount;
-        uint256 deadline; // question: What exactly is this deadline supposed to protect against; late funding, late conditions met or late delivery confirmation?
+        uint256 deadline;
         bool shipped;
         bool customsCleared;
         bool goodsReceived;
@@ -79,12 +79,12 @@ contract Escrow is ReentrancyGuard, Ownable {
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
-    // bytes32 private constant ARBITER_ROLE = keccak256("ARBITER_ROLE");
 
+    /// @dev The vault contract that holds the funds for each trade. It is used to deposit and withdraw ERC20 tokens for trades.
     IVault private immutable i_vault;
-
+    /// @dev The next tradeId to be assigned to a new trade. It is incremented for each new trade created, ensuring that each trade has a unique identifier.
     uint256 public s_nextTradeId;
-
+    /// @dev The mapping tracking user trades per tradeId. Each trade is identified by a unique tradeId, which is incremented for each new trade created.
     mapping(uint256 tradeId => Trade) private s_trades;
 
     /*/////////////////////////////////////////////////////////
@@ -127,7 +127,15 @@ contract Escrow is ReentrancyGuard, Ownable {
     /*//////////////////////////////////////////////////////////////
                         EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-
+    /**
+     * @dev External implementation of _createTrade function
+     * @param buyer The buyer address of the trade.
+     * @param supplier The supplier address of the trade.
+     * @param amount The amount of the trade.
+     * @param arbiter The arbiter address of the trade.
+     * @param deadline The deadline timestamp for the trade.
+     * @return tradeId The unique identifier of the newly created trade.
+     */
     function createTrade(address buyer, address supplier, uint256 amount, address arbiter, uint256 deadline)
         external
         nonReentrant
@@ -136,26 +144,53 @@ contract Escrow is ReentrancyGuard, Ownable {
         tradeId = _createTrade(buyer, supplier, amount, arbiter, deadline);
     }
 
+    /**
+     * @dev External implementation of _fundTrade function
+     * @param tradeId The unique identifier of the trade to be funded.
+     */
     function fundTrade(uint256 tradeId) external nonReentrant {
         _fundTrade(tradeId);
     }
 
+    /**
+     * @dev External implementation of _confirmDelivery function
+     * @param tradeId The unique identifier of the trade for which delivery is to be confirmed.
+     */
     function confirmDelivery(uint256 tradeId) external nonReentrant {
         _confirmDelivery(tradeId);
     }
 
+    /**
+     * @dev External implementation of _meetTradeConditions function
+     * @param tradeId The unique identifier of the trade for which conditions are to be met.
+     */
     function meetTradeConditions(uint256 tradeId) external nonReentrant {
         _meetTradeConditions(tradeId);
     }
 
+    /**
+     * @dev External implementation of _confirmShipped function
+     * @param tradeId The unique identifier of the trade for which shipping status is to be confirmed.
+     * @param shipped The shipping status of the trade.
+     */
     function confirmShipped(uint256 tradeId, bool shipped) external nonReentrant {
         _confirmShipped(tradeId, shipped);
     }
 
+    /**
+     * @dev External implementation of _confirmCustomsCleared function
+     * @param tradeId The unique identifier of the trade for which customs clearance status is to be confirmed.
+     * @param customsCleared The customs clearance status of the trade.
+     */
     function confirmCustomsCleared(uint256 tradeId, bool customsCleared) external nonReentrant {
         _confirmCustomsCleared(tradeId, customsCleared);
     }
 
+    /**
+     * @dev External implementation of _confirmGoodsReceived function
+     * @param tradeId The unique identifier of the trade for which goods receipt status is to be confirmed.
+     * @param goodsReceived The goods receipt status of the trade.
+     */
     function confirmGoodsReceived(uint256 tradeId, bool goodsReceived) external nonReentrant {
         _confirmGoodsReceived(tradeId, goodsReceived);
     }
@@ -164,23 +199,36 @@ contract Escrow is ReentrancyGuard, Ownable {
                     EDGE CASES EXTERNAL FUNCTIONS
     ////////////////////////////////////////////////////////////////*/
 
+    /**
+     * @dev External implementation of _raiseDispute function
+     * @param tradeId The uniques identifier of the trade.
+     */
     function raiseDispute(uint256 tradeId) external nonReentrant {
         _raiseDispute(tradeId);
     }
 
+    /**
+     * @dev External implementation of _resolveDispute function
+     * @param tradeId The unique identifier of the trade for which the dispute is to be resolved.
+     * @param releaseToSupplier Whether the funds should be released to the supplier.
+     */
     function resolveDispute(uint256 tradeId, bool releaseToSupplier) external nonReentrant {
         _resolveDispute(tradeId, releaseToSupplier);
     }
 
+    /**
+     * @dev External implementation of _claimRefund function
+     * @param tradeId The unique identifier of the trade for which the refund is to be claimed.
+     */
     function claimRefund(uint256 tradeId) external nonReentrant {
         _claimRefund(tradeId);
     }
 
-    // Trade ID is never rescinded — trade IDs should be permanent and never reused/deleted.
-    // cancelTrade should just set status = Status.Cancelled (a new enum value you'll need to add).
-    // Reusing IDs risks collisions with historical events/logs referencing that ID.
-    // cancelTrade only applies to Status.Created (unfunded) trades.
-    // No money has moved yet, so there's nothing in the Vault to return.
+    /**
+     * @dev External implementation of _cancelTrade function
+     * @param tradeId The unique identifier of the trade to be cancelled.
+     * @notice cancelTrade only applies to Status.Created (unfunded) trades.
+     */
     function cancelTrade(uint256 tradeId) external nonReentrant {
         _cancelTrade(tradeId);
     }
