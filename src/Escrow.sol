@@ -103,18 +103,28 @@ contract Escrow is ReentrancyGuard, Ownable {
     /*/////////////////////////////////////////////////////////
                             EVENTS
     /////////////////////////////////////////////////////////*/
+    /// @dev Emitted when a new trade is created. It includes the tradeId, buyer address, supplier address, arbiter address, and the amount of the trade.
     event TradeCreated(
         uint256 indexed tradeId, address indexed buyer, address supplier, address indexed arbiter, uint256 amount
     );
+    /// @dev Emitted when a trade is funded by the buyer. It includes the tradeId, buyer address, supplier address, and the amount of the trade.
     event TradeFunded(uint256 indexed tradeId, address indexed buyer, address supplier, uint256 indexed amount);
+    /// @dev Emitted when the funds for a trade are released to the supplier. It includes the tradeId, supplier address, and the amount of the trade.
     event TradeFundsReleasedToSupplier(uint256 indexed tradeId, address indexed supplier, uint256 indexed amount);
+    /// @dev Emitted when all trade conditions are met. It includes the tradeId.
     event AllTradeConditionsMet(uint256 indexed tradeId);
+    /// @dev Emitted when the shipped conditions for a trade are met. It includes the tradeId.
     event ShippedConditionsMet(uint256 indexed tradeId);
+    /// @dev Emitted when the customs clearance conditions for a trade are met. It includes the tradeId.
     event ClearedCustomsConditionsMet(uint256 indexed tradeId);
+    /// @dev Emitted when the goods receipt conditions for a trade are met. It includes the tradeId.
     event ReceivedGoodsConditionsMet(uint256 indexed tradeId);
+    /// @dev Emitted when a trade is refunded. It includes the tradeId, buyer address, and the amount refunded.
     event TradeRefunded(uint256 indexed tradeId, address indexed buyer, uint256 indexed amount);
-    event TradeDisputed(uint256 indexed tradeId, address indexed);
-    event TradeCancelled(uint256 indexed tradeId, address indexed);
+    /// @dev Emitted when a trade is disputed. It includes the tradeId and the buyer address.
+    event TradeDisputed(uint256 indexed tradeId, address indexed buyer);
+    /// @dev Emitted when a trade is cancelled. It includes the tradeId and the buyer address.
+    event TradeCancelled(uint256 indexed tradeId, address indexed buyer);
 
     /*/////////////////////////////////////////////////////////
                             MODIFIERS
