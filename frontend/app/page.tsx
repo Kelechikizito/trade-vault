@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-// import { useWallet } from "@/lib/wallet-context";
 import { useAccount } from "wagmi";
+import { LiquidButton } from "@/components/ui/liquid-button";
 
 export default function Page() {
   const { isConnected } = useAccount();
@@ -39,14 +39,17 @@ export default function Page() {
             {isConnected ? (
               <>
                 <Link href="/dashboard">
-                  <button className="px-8 py-3 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity">
+                  <LiquidButton variant="primary" className="px-8 py-3 text-lg">
                     Go to Dashboard
-                  </button>
+                  </LiquidButton>
                 </Link>
                 <Link href="/dashboard/create">
-                  <button className="px-8 py-3 rounded-lg bg-secondary text-secondary-foreground font-semibold hover:opacity-90 transition-opacity">
+                  <LiquidButton
+                    variant="secondary"
+                    className="px-8 py-3 text-lg"
+                  >
                     Create New Trade
-                  </button>
+                  </LiquidButton>
                 </Link>
               </>
             ) : (
@@ -120,9 +123,9 @@ export default function Page() {
           </p>
           {isConnected ? (
             <Link href="/dashboard">
-              <button className="px-8 py-3 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity">
+              <LiquidButton variant="primary" className="px-8 py-3 text-lg">
                 Enter Dashboard
-              </button>
+              </LiquidButton>
             </Link>
           ) : (
             <p className="text-muted-foreground">

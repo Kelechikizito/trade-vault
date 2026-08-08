@@ -2,7 +2,6 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-// import { useWallet } from "@/lib/wallet-context";
 import { useAccount } from "wagmi";
 import {
   getTrade,
@@ -10,6 +9,8 @@ import {
   confirmShipped,
   confirmCustomsCleared,
   confirmGoodsReceived,
+  meetTradeConditions,
+  confirmDelivery,
   raiseDispute,
   claimRefund,
   cancelTrade,
@@ -21,6 +22,17 @@ import { StepTimeline } from "@/components/step-timeline";
 import { ShipmentMap } from "@/components/shipment-map";
 import { MilestoneList } from "@/components/milestone-list";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { LiquidButton } from "@/components/ui/liquid-button";
+import { ConfirmActionModal } from "@/components/confirm-action-modal";
+
+type PendingAction = {
+  action: () => boolean;
+  name: string;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  confirmVariant: "primary" | "destructive";
+} | null;
 
 export default function TradeDetailPage({
   params,
@@ -32,6 +44,7 @@ export default function TradeDetailPage({
   const [trade, setTrade] = useState<Trade | null>(null);
   const [userRole, setUserRole] = useState<UserRole>("none");
   const [loading, setLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
   useEffect(() => {
     const loadedTrade = getTrade(id);
@@ -54,7 +67,6 @@ export default function TradeDetailPage({
         const updated = getTrade(trade.id);
         if (updated) {
           setTrade(updated);
-          console.log(`[v0] ${actionName} completed successfully`);
         }
       } else {
         console.log(`[v0] ${actionName} failed - invalid state`);
@@ -63,7 +75,14 @@ export default function TradeDetailPage({
       console.error(`[v0] Error during ${actionName}:`, error);
     } finally {
       setLoading(false);
+      setPendingAction(null);
     }
+  };
+
+  // Actions with real financial consequence route through the confirmation
+  // modal instead of firing directly on click.
+  const requestConfirmation = (details: NonNullable<PendingAction>) => {
+    setPendingAction(details);
   };
 
   if (!trade) {
@@ -87,10 +106,21 @@ export default function TradeDetailPage({
   }
 
   const canFund = userRole === "buyer" && trade.status === "Created";
-  const canShip = userRole === "supplier" && trade.status === "Funded";
+  const canConfirmShipped =
+    userRole === "arbiter" &&
+    trade.status === "Funded" &&
+    !trade.conditions.shipped;
   const canConfirmMilestones =
     userRole === "arbiter" &&
     (trade.status === "Shipped" || trade.status === "Funded");
+  const canMeetConditions =
+    userRole === "arbiter" &&
+    trade.status === "Shipped" &&
+    trade.conditions.shipped &&
+    trade.conditions.customsCleared &&
+    trade.conditions.goodsReceived;
+  const canReleasePayment =
+    userRole === "arbiter" && trade.status === "Conditions Met";
   const canRaiseDispute =
     (userRole === "buyer" || userRole === "supplier") &&
     trade.status === "Funded";
@@ -197,20 +227,24 @@ export default function TradeDetailPage({
               {userRole === "buyer" && (
                 <div className="space-y-3">
                   {canFund && (
-                    <button
+                    <LiquidButton
+                      variant="primary"
+                      className="w-full py-3"
+                      disabled={loading}
                       onClick={() =>
                         handleAction(() => fundTrade(trade.id), "Fund Trade")
                       }
-                      disabled={loading}
-                      className="w-full px-6 py-3 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
                       {loading
                         ? "Processing..."
                         : "Fund Trade (Approve & Deposit)"}
-                    </button>
+                    </LiquidButton>
                   )}
                   {canRaiseDispute && (
-                    <button
+                    <LiquidButton
+                      variant="destructive"
+                      className="w-full py-3"
+                      disabled={loading}
                       onClick={() =>
                         handleAction(
                           () =>
@@ -222,41 +256,41 @@ export default function TradeDetailPage({
                           "Raise Dispute",
                         )
                       }
-                      disabled={loading}
-                      className="w-full px-6 py-3 rounded-lg bg-destructive text-white font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
                       {loading ? "Processing..." : "Raise Dispute"}
-                    </button>
+                    </LiquidButton>
                   )}
                   {canClaimRefund && (
-                    <button
+                    <LiquidButton
+                      variant="secondary"
+                      className="w-full py-3"
+                      disabled={loading}
                       onClick={() =>
                         handleAction(
                           () => claimRefund(trade.id),
                           "Claim Refund",
                         )
                       }
-                      disabled={loading}
-                      className="w-full px-6 py-3 rounded-lg bg-accent text-accent-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
                       {loading
                         ? "Processing..."
                         : "Claim Refund (Deadline Passed)"}
-                    </button>
+                    </LiquidButton>
                   )}
                   {canCancelTrade && (
-                    <button
+                    <LiquidButton
+                      variant="secondary"
+                      className="w-full py-3"
+                      disabled={loading}
                       onClick={() =>
                         handleAction(
                           () => cancelTrade(trade.id),
                           "Cancel Trade",
                         )
                       }
-                      disabled={loading}
-                      className="w-full px-6 py-3 rounded-lg bg-muted text-muted-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
                       {loading ? "Processing..." : "Cancel Trade"}
-                    </button>
+                    </LiquidButton>
                   )}
                 </div>
               )}
@@ -264,22 +298,11 @@ export default function TradeDetailPage({
               {/* Supplier Actions */}
               {userRole === "supplier" && (
                 <div className="space-y-3">
-                  {canShip && (
-                    <button
-                      onClick={() =>
-                        handleAction(
-                          () => confirmShipped(trade.id, true),
-                          "Confirm Shipped",
-                        )
-                      }
-                      disabled={loading}
-                      className="w-full px-6 py-3 rounded-lg bg-secondary text-secondary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
-                    >
-                      {loading ? "Processing..." : "Confirm Goods Shipped"}
-                    </button>
-                  )}
                   {canRaiseDispute && (
-                    <button
+                    <LiquidButton
+                      variant="destructive"
+                      className="w-full py-3"
+                      disabled={loading}
                       onClick={() =>
                         handleAction(
                           () =>
@@ -291,11 +314,9 @@ export default function TradeDetailPage({
                           "Raise Dispute",
                         )
                       }
-                      disabled={loading}
-                      className="w-full px-6 py-3 rounded-lg bg-destructive text-white font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
                       {loading ? "Processing..." : "Raise Dispute"}
-                    </button>
+                    </LiquidButton>
                   )}
                 </div>
               )}
@@ -303,92 +324,160 @@ export default function TradeDetailPage({
               {/* Arbiter Actions */}
               {userRole === "arbiter" && (
                 <div className="space-y-3">
+                  {canConfirmShipped && (
+                    <LiquidButton
+                      variant="secondary"
+                      className="w-full py-3"
+                      disabled={loading}
+                      onClick={() =>
+                        handleAction(
+                          () => confirmShipped(trade.id, true),
+                          "Confirm Shipped",
+                        )
+                      }
+                    >
+                      {loading ? "Processing..." : "Confirm Goods Shipped"}
+                    </LiquidButton>
+                  )}
+
                   {canConfirmMilestones && (
                     <div className="space-y-2">
                       <label className="block text-sm font-semibold text-foreground">
                         Confirm Milestones:
                       </label>
                       {!trade.conditions.customsCleared && (
-                        <button
+                        <LiquidButton
+                          variant="secondary"
+                          className="w-full"
+                          disabled={loading}
                           onClick={() =>
                             handleAction(
                               () => confirmCustomsCleared(trade.id, true),
                               "Confirm Customs",
                             )
                           }
-                          disabled={loading}
-                          className="w-full px-4 py-2 rounded-lg bg-secondary/50 text-secondary-foreground font-medium hover:bg-secondary transition-colors disabled:opacity-50"
                         >
                           {loading
                             ? "Processing..."
                             : "Confirm Customs Cleared"}
-                        </button>
+                        </LiquidButton>
                       )}
                       {!trade.conditions.goodsReceived &&
                         trade.conditions.shipped && (
-                          <button
+                          <LiquidButton
+                            variant="secondary"
+                            className="w-full"
+                            disabled={loading}
                             onClick={() =>
                               handleAction(
                                 () => confirmGoodsReceived(trade.id, true),
                                 "Confirm Received",
                               )
                             }
-                            disabled={loading}
-                            className="w-full px-4 py-2 rounded-lg bg-secondary/50 text-secondary-foreground font-medium hover:bg-secondary transition-colors disabled:opacity-50"
                           >
                             {loading
                               ? "Processing..."
                               : "Confirm Goods Received"}
-                          </button>
+                          </LiquidButton>
                         )}
                     </div>
                   )}
+
+                  {canMeetConditions && (
+                    <LiquidButton
+                      variant="primary"
+                      className="w-full py-3"
+                      disabled={loading}
+                      onClick={() =>
+                        handleAction(
+                          () => meetTradeConditions(trade.id),
+                          "Mark Conditions Met",
+                        )
+                      }
+                    >
+                      {loading ? "Processing..." : "Mark All Conditions Met"}
+                    </LiquidButton>
+                  )}
+
+                  {canReleasePayment && (
+                    <LiquidButton
+                      variant="primary"
+                      className="w-full py-3"
+                      disabled={loading}
+                      onClick={() =>
+                        requestConfirmation({
+                          action: () => confirmDelivery(trade.id),
+                          name: "Confirm Delivery",
+                          title: "Release payment to supplier?",
+                          description:
+                            "This confirms delivery and releases the locked funds to the supplier. This cannot be undone once submitted.",
+                          confirmLabel: "Release Payment",
+                          confirmVariant: "primary",
+                        })
+                      }
+                    >
+                      Confirm Delivery & Release Payment
+                    </LiquidButton>
+                  )}
+
                   {canResolveDispute && (
                     <div className="space-y-2 pt-4 border-t border-border">
                       <p className="text-sm font-semibold text-foreground">
                         Resolve Dispute:
                       </p>
                       <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() =>
-                            handleAction(
-                              () => resolveDispute(trade.id, true),
-                              "Release to Supplier",
-                            )
-                          }
+                        <LiquidButton
+                          variant="primary"
                           disabled={loading}
-                          className="px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-                        >
-                          {loading ? "Processing..." : "Release to Supplier"}
-                        </button>
-                        <button
                           onClick={() =>
-                            handleAction(
-                              () => resolveDispute(trade.id, false),
-                              "Refund to Buyer",
-                            )
+                            requestConfirmation({
+                              action: () => resolveDispute(trade.id, true),
+                              name: "Release to Supplier",
+                              title: "Release payment to supplier?",
+                              description:
+                                "This resolves the dispute in the supplier's favor and releases the locked funds to them. This cannot be undone once submitted.",
+                              confirmLabel: "Release to Supplier",
+                              confirmVariant: "primary",
+                            })
                           }
-                          disabled={loading}
-                          className="px-4 py-2 rounded-lg bg-orange-500/20 text-orange-700 dark:text-orange-300 font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
                         >
-                          {loading ? "Processing..." : "Refund to Buyer"}
-                        </button>
+                          Release to Supplier
+                        </LiquidButton>
+                        <LiquidButton
+                          variant="secondary"
+                          disabled={loading}
+                          onClick={() =>
+                            requestConfirmation({
+                              action: () => resolveDispute(trade.id, false),
+                              name: "Refund to Buyer",
+                              title: "Refund payment to buyer?",
+                              description:
+                                "This resolves the dispute in the buyer's favor and refunds the locked funds to them. This cannot be undone once submitted.",
+                              confirmLabel: "Refund to Buyer",
+                              confirmVariant: "primary",
+                            })
+                          }
+                        >
+                          Refund to Buyer
+                        </LiquidButton>
                       </div>
                     </div>
                   )}
+
                   {canCancelTrade && (
-                    <button
+                    <LiquidButton
+                      variant="secondary"
+                      className="w-full py-3"
+                      disabled={loading}
                       onClick={() =>
                         handleAction(
                           () => cancelTrade(trade.id),
                           "Cancel Trade",
                         )
                       }
-                      disabled={loading}
-                      className="w-full px-6 py-3 rounded-lg bg-muted text-muted-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
                       {loading ? "Processing..." : "Cancel Trade"}
-                    </button>
+                    </LiquidButton>
                   )}
                 </div>
               )}
@@ -418,6 +507,21 @@ export default function TradeDetailPage({
           </div>
         </div>
       </div>
+
+      {pendingAction && (
+        <ConfirmActionModal
+          trade={trade}
+          title={pendingAction.title}
+          description={pendingAction.description}
+          confirmLabel={pendingAction.confirmLabel}
+          confirmVariant={pendingAction.confirmVariant}
+          loading={loading}
+          onConfirm={() =>
+            handleAction(pendingAction.action, pendingAction.name)
+          }
+          onCancel={() => setPendingAction(null)}
+        />
+      )}
     </main>
   );
 }

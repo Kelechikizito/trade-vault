@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-// import { useWallet } from "@/lib/wallet-context";
 import { useAccount } from "wagmi";
+import { isAddress } from "viem";
 import { createTrade } from "@/lib/mock-contract";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { LiquidButton } from "@/components/ui/liquid-button";
+
+// Amount input: digits with at most one decimal point — blocks letters,
+// multiple dots, and negative signs at the keystroke level.
+const AMOUNT_PATTERN = /^\d*\.?\d*$/;
 
 export default function CreateTradePage() {
   const router = useRouter();
@@ -16,10 +21,56 @@ export default function CreateTradePage() {
     supplier: "",
     arbiter: "",
     amount: "",
-    currency: "USD",
     description: "",
     deadline: "48",
   });
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  const errors = useMemo(() => {
+    const e: Record<string, string> = {};
+
+    if (formData.supplier && !isAddress(formData.supplier)) {
+      e.supplier = "Not a valid address";
+    } else if (
+      formData.supplier &&
+      address &&
+      formData.supplier.toLowerCase() === address.toLowerCase()
+    ) {
+      e.supplier = "Supplier can't be the same as the buyer";
+    }
+
+    if (formData.arbiter && !isAddress(formData.arbiter)) {
+      e.arbiter = "Not a valid address";
+    } else if (
+      formData.arbiter &&
+      address &&
+      formData.arbiter.toLowerCase() === address.toLowerCase()
+    ) {
+      e.arbiter = "Arbiter can't be the same as the buyer";
+    } else if (
+      formData.arbiter &&
+      formData.supplier &&
+      formData.arbiter.toLowerCase() === formData.supplier.toLowerCase()
+    ) {
+      e.arbiter = "Arbiter can't be the same as the supplier";
+    }
+
+    if (formData.amount) {
+      const amountNum = parseFloat(formData.amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        e.amount = "Amount must be greater than 0";
+      }
+    }
+
+    return e;
+  }, [formData, address]);
+
+  const isFormValid =
+    Object.keys(errors).length === 0 &&
+    formData.supplier &&
+    formData.arbiter &&
+    formData.amount &&
+    formData.description;
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -27,20 +78,40 @@ export default function CreateTradePage() {
     >,
   ) => {
     const { name, value } = e.target;
+
+    if (name === "amount") {
+      // Reject the keystroke entirely if it breaks the numeric pattern,
+      // rather than validating after the fact.
+      if (value !== "" && !AMOUNT_PATTERN.test(value)) return;
+    }
+
+    if (name === "supplier" || name === "arbiter") {
+      // Addresses are case-sensitive in checksum form but comparisons
+      // below are case-insensitive, so just trim stray whitespace here.
+      setFormData((prev) => ({ ...prev, [name]: value.trim() }));
+      return;
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    setTouched((prev) => ({ ...prev, [e.target.name]: true }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setTouched({ supplier: true, arbiter: true, amount: true });
+    if (!isFormValid) return;
 
+    setLoading(true);
     try {
       const tradeId = createTrade(
         address || "",
         formData.supplier,
         formData.arbiter,
         parseFloat(formData.amount),
-        formData.currency,
+        "USDC",
         formData.description,
         parseInt(formData.deadline),
       );
@@ -136,10 +207,18 @@ export default function CreateTradePage() {
               name="supplier"
               value={formData.supplier}
               onChange={handleChange}
+              onBlur={handleBlur}
               placeholder="0x..."
               required
-              className="w-full px-4 py-2 rounded-lg bg-input border border-border text-foreground placeholder-muted-foreground"
+              className={`w-full px-4 py-2 rounded-lg bg-input border font-mono text-sm text-foreground placeholder-muted-foreground ${
+                touched.supplier && errors.supplier
+                  ? "border-destructive"
+                  : "border-border"
+              }`}
             />
+            {touched.supplier && errors.supplier && (
+              <p className="text-xs text-destructive mt-1">{errors.supplier}</p>
+            )}
           </div>
 
           {/* Arbiter Address */}
@@ -156,53 +235,52 @@ export default function CreateTradePage() {
               name="arbiter"
               value={formData.arbiter}
               onChange={handleChange}
+              onBlur={handleBlur}
               placeholder="0x..."
               required
-              className="w-full px-4 py-2 rounded-lg bg-input border border-border text-foreground placeholder-muted-foreground"
+              className={`w-full px-4 py-2 rounded-lg bg-input border font-mono text-sm text-foreground placeholder-muted-foreground ${
+                touched.arbiter && errors.arbiter
+                  ? "border-destructive"
+                  : "border-border"
+              }`}
             />
+            {touched.arbiter && errors.arbiter && (
+              <p className="text-xs text-destructive mt-1">{errors.arbiter}</p>
+            )}
           </div>
 
-          {/* Amount & Currency */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2">
-              <label
-                htmlFor="amount"
-                className="block text-sm font-semibold text-foreground mb-2"
-              >
-                Amount *
-              </label>
+          {/* Amount */}
+          <div>
+            <label
+              htmlFor="amount"
+              className="block text-sm font-semibold text-foreground mb-2"
+            >
+              Amount (USDC) *
+            </label>
+            <div className="relative">
               <input
                 id="amount"
-                type="number"
+                type="text"
+                inputMode="decimal"
                 name="amount"
                 value={formData.amount}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 placeholder="50000"
-                min="0"
-                step="1000"
                 required
-                className="w-full px-4 py-2 rounded-lg bg-input border border-border text-foreground placeholder-muted-foreground"
+                className={`w-full px-4 py-2 pr-16 rounded-lg bg-input border text-foreground placeholder-muted-foreground ${
+                  touched.amount && errors.amount
+                    ? "border-destructive"
+                    : "border-border"
+                }`}
               />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                USDC
+              </span>
             </div>
-            <div>
-              <label
-                htmlFor="currency"
-                className="block text-sm font-semibold text-foreground mb-2"
-              >
-                Currency
-              </label>
-              <select
-                id="currency"
-                name="currency"
-                value={formData.currency}
-                onChange={handleChange}
-                className="w-full px-4 py-2 rounded-lg bg-input border border-border text-foreground"
-              >
-                <option>USD</option>
-                <option>EUR</option>
-                <option>GBP</option>
-              </select>
-            </div>
+            {touched.amount && errors.amount && (
+              <p className="text-xs text-destructive mt-1">{errors.amount}</p>
+            )}
           </div>
 
           {/* Description */}
@@ -231,7 +309,7 @@ export default function CreateTradePage() {
               htmlFor="deadline"
               className="block text-sm font-semibold text-foreground mb-2"
             >
-              Funding Deadline (hours) *
+              Funding Deadline *
             </label>
             <select
               id="deadline"
@@ -249,20 +327,22 @@ export default function CreateTradePage() {
 
           {/* Submit Button */}
           <div className="flex gap-4 pt-4">
-            <button
+            <LiquidButton
               type="submit"
-              disabled={loading}
-              className="flex-1 px-6 py-3 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+              variant="primary"
+              disabled={loading || !isFormValid}
+              className="flex-1 py-3"
             >
               {loading ? "Creating..." : "Create Trade"}
-            </button>
+            </LiquidButton>
             <Link href="/dashboard" className="flex-1">
-              <button
+              <LiquidButton
                 type="button"
-                className="w-full px-6 py-3 rounded-lg bg-secondary text-secondary-foreground font-semibold hover:opacity-90 transition-opacity"
+                variant="secondary"
+                className="w-full py-3"
               >
                 Cancel
-              </button>
+              </LiquidButton>
             </Link>
           </div>
         </form>
