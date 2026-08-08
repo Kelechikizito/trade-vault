@@ -134,11 +134,39 @@ export default function Page() {
 
       {/* Footer */}
       <footer className="border-t border-border mt-20 py-8">
-        <div className="max-w-6xl mx-auto px-4 text-center text-muted-foreground text-sm">
-          <p>
-            TradeVault - Decentralized Trade Finance Platform | All trades are
-            secured by smart contracts
+        <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4 text-sm">
+          <p className="text-muted-foreground">
+            TradeVault - Decentralized Trade Finance Platform
           </p>
+          <nav
+            aria-label="Footer navigation"
+            className="flex items-center gap-6"
+          >
+            <a
+              href="https://github.com/Kelechikizito/trade-vault"
+              target="_blank"
+              rel="noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              GitHub
+            </a>
+            <a
+              href="https://github.com/Kelechikizito/trade-vault/blob/main/README.md"
+              target="_blank"
+              rel="noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              README / Docs
+            </a>
+            <a
+              href="https://x.com/0xkelechii"
+              target="_blank"
+              rel="noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              X
+            </a>
+          </nav>
         </div>
       </footer>
     </main>
