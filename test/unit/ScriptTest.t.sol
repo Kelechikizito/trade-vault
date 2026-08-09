@@ -30,8 +30,8 @@ contract VaultTest is Test {
     }
 
     function testDeployContractsAndSetEscrowScript() external {
-        Vault VaultAddress = deployVaultScript.run(address(usdc), DUMMY_ESCROW);
-        Escrow EscrowAddress = deployEscrowScript.run(address(VaultAddress));
-        setEscrowScript.run(address(VaultAddress), address(EscrowAddress));
+        Vault VaultAddress = deployVaultScript.deployVault(address(usdc), DUMMY_ESCROW);
+        Escrow EscrowAddress = deployEscrowScript.deployEscrow(address(VaultAddress));
+        setEscrowScript.setEscrow(address(VaultAddress), address(EscrowAddress));
     }
 }

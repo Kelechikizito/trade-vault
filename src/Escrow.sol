@@ -678,7 +678,9 @@ contract Escrow is ReentrancyGuard, Ownable {
     /**
      * @dev Getter function to return the conditions of a trade.
      * @param tradeId The unique identifier of the trade.
-     * @return A tuple containing the shipping status, customs clearance status, and goods receipt status.
+     *  * @return shipped Whether the goods have been shipped.
+     * @return customsCleared Whether customs clearance is confirmed.
+     * @return goodsReceived Whether the buyer has confirmed receipt.
      */
     function getTradeConditions(uint256 tradeId)
         external
