@@ -9,9 +9,6 @@ import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {Vault} from "src/Vault.sol";
 import {Escrow} from "src/Escrow.sol";
 
-
-
-
 contract VaultTest is Test {
     ERC20Mock usdc;
 

@@ -7,10 +7,10 @@ import {Vault} from "src/Vault.sol";
 import {DevOpsTools} from "foundry-devops/src/DevOpsTools.sol";
 
 contract SetEscrowScript is Script {
-    // address mostRecentlyDeployed = DevOpsTools.get_most_recent_deployment("Vault", block.chainid);
-
-    function run(address vaultAddress, address escrowAddress) public {
-        setEscrow(vaultAddress, escrowAddress);
+    function run() public {
+        address mostRecentlyDeployedVault = DevOpsTools.get_most_recent_deployment("Vault", block.chainid);
+        address mostRecentlyDeployedEscrow = DevOpsTools.get_most_recent_deployment("Escrow", block.chainid);
+        setEscrow(mostRecentlyDeployedVault, mostRecentlyDeployedEscrow);
     }
 
     function setEscrow(address vaultAddress, address escrowAddress) public {

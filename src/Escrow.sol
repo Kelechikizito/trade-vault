@@ -22,7 +22,7 @@ contract Escrow is ReentrancyGuard, Ownable {
     /// @dev This error is thrown when the operation demands the msg.sender be the arbiter.
     error Escrow__OnlyArbiterAddress();
     /// @dev This error is thrown when a zero address is provided
-    error Escrow__NoneZeroAddress();.
+    error Escrow__NoneZeroAddress();
     /// @dev This error is thrown when an invalid amount is provided.
     error Escrow__InvalidAmount();
     /// @dev This error is thrown when an address isn't different from the buyer or supplier.
@@ -458,7 +458,7 @@ contract Escrow is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @dev This function allows the arbiter to confirm that the goods have been cleared for a specific trade. 
+     * @dev This function allows the arbiter to confirm that the goods have been cleared for a specific trade.
      * @param tradeId The unique identifier of the trade.
      * @param customsCleared A boolean indicating whether the goods have been customs cleared.
      */

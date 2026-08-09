@@ -8,8 +8,6 @@ import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-
-
 contract EscrowTest is Test {
     using SafeERC20 for IERC20;
 
@@ -41,10 +39,9 @@ contract EscrowTest is Test {
 
     function setUp() public {
         usdc = new ERC20Mock();
-        
+
         vm.prank(OWNER);
         vault = new Vault(address(usdc), PLACEHOLDER);
-
 
         vm.prank(OWNER);
         escrow = new Escrow(address(vault));
@@ -55,7 +52,6 @@ contract EscrowTest is Test {
         deal(address(usdc), BUYER, BUYER_USDC_BALANCE);
     }
 
-    
     /*//////////////////////////////////////////////////////////////
                             HAPPY PATH TESTS
     //////////////////////////////////////////////////////////////*/
@@ -71,7 +67,6 @@ contract EscrowTest is Test {
 
         // ASSERT
         assertEq(tradeId, 0);
-
     }
 
     modifier createTradeSuccessfully() {
@@ -86,7 +81,7 @@ contract EscrowTest is Test {
         _;
     }
 
-    function testFundTradeIsSuccessful() external createTradeSuccessfully() {
+    function testFundTradeIsSuccessful() external createTradeSuccessfully {
         // ARRANGE
 
         // ACT
@@ -118,7 +113,7 @@ contract EscrowTest is Test {
         _;
     }
 
-    function testMeetTradeConditionsIsSuccessful() external createAndFundTradeSuccessfully() {
+    function testMeetTradeConditionsIsSuccessful() external createAndFundTradeSuccessfully {
         // ARRANGE
 
         // ACT
@@ -134,7 +129,6 @@ contract EscrowTest is Test {
 
         // ASSERT
         assertEq(uint8(escrow.getTradeStatus(tradeId)), uint8(Escrow.Status.ConditionsMet));
-
     }
 
     modifier meetTradeConditionsSuccessfully() {
@@ -165,7 +159,7 @@ contract EscrowTest is Test {
         _;
     }
 
-    function testConfirmDeliveryIsSuccessful() external meetTradeConditionsSuccessfully() {
+    function testConfirmDeliveryIsSuccessful() external meetTradeConditionsSuccessfully {
         // ARRANGE
         uint256 tradeAmount = 10e6;
 
@@ -176,7 +170,11 @@ contract EscrowTest is Test {
         // ASSERT
         assertEq(usdc.balanceOf(SUPPLIER), tradeAmount);
         console2.log("Supplier has successfully recieved payment for the goods supplied to the buyer");
-        console2.log("Supplier recieved", (tradeAmount / 1e6), "USDC, after successful delivery confirmation by the third-party arbiter.");
+        console2.log(
+            "Supplier recieved",
+            (tradeAmount / 1e6),
+            "USDC, after successful delivery confirmation by the third-party arbiter."
+        );
     }
 
     modifier confirmDeliverySuccessfully() {
@@ -331,21 +329,21 @@ contract EscrowTest is Test {
         escrow.fundTrade(invalidTradeId);
     }
 
-    function testFundTradeRevertsIfTradeAlreadyFunded() external createAndFundTradeSuccessfully() {
+    function testFundTradeRevertsIfTradeAlreadyFunded() external createAndFundTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(BUYER);
         vm.expectRevert();
         escrow.fundTrade(tradeId);
     }
 
-    function testFundTradeRevertsIfMsgSenderIsNotBuyer() external createTradeSuccessfully() {
+    function testFundTradeRevertsIfMsgSenderIsNotBuyer() external createTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(SUPPLIER);
         vm.expectRevert();
         escrow.fundTrade(tradeId);
     }
 
-    function testFundTradeRevertsIfDeadlineHasPassed() external createTradeSuccessfully() {
+    function testFundTradeRevertsIfDeadlineHasPassed() external createTradeSuccessfully {
         // ARRANGE
         vm.warp(block.timestamp + 2 weeks);
 
@@ -355,8 +353,7 @@ contract EscrowTest is Test {
         escrow.fundTrade(tradeId);
     }
 
-
-    function testConfirmGoodsReceivedRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully() {
+    function testConfirmGoodsReceivedRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully {
         // ARRANGE
         uint256 invalidTradeId = 999;
 
@@ -366,21 +363,21 @@ contract EscrowTest is Test {
         escrow.confirmGoodsReceived(invalidTradeId, true);
     }
 
-    function testConfirmGoodsReceivedRevertsIfMsgSenderIsNotArbiter() external createAndFundTradeSuccessfully() {
+    function testConfirmGoodsReceivedRevertsIfMsgSenderIsNotArbiter() external createAndFundTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(SUPPLIER);
         vm.expectRevert();
         escrow.confirmGoodsReceived(tradeId, true);
     }
 
-    function testConfirmGoodsReceivedRevertsIfTradeNotFunded() external createTradeSuccessfully() {
+    function testConfirmGoodsReceivedRevertsIfTradeNotFunded() external createTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(ARBITER);
         vm.expectRevert();
         escrow.confirmGoodsReceived(tradeId, true);
     }
 
-    function testConfirmGoodsReceivedRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully() {
+    function testConfirmGoodsReceivedRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully {
         // ARRANGE
         vm.warp(block.timestamp + 2 weeks);
 
@@ -390,15 +387,14 @@ contract EscrowTest is Test {
         escrow.confirmGoodsReceived(tradeId, true);
     }
 
-    function testConfirmGoodsReceivedRevertsIfNotConfirmed() external createAndFundTradeSuccessfully() {
+    function testConfirmGoodsReceivedRevertsIfNotConfirmed() external createAndFundTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(ARBITER);
         vm.expectRevert();
         escrow.confirmGoodsReceived(tradeId, false);
     }
 
-
-    function testConfirmCustomsClearedRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully() {
+    function testConfirmCustomsClearedRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully {
         // ARRANGE
         uint256 invalidTradeId = 999;
 
@@ -408,21 +404,21 @@ contract EscrowTest is Test {
         escrow.confirmCustomsCleared(invalidTradeId, true);
     }
 
-    function testConfirmCustomsClearedRevertsIfMsgSenderIsNotArbiter() external createAndFundTradeSuccessfully() {
+    function testConfirmCustomsClearedRevertsIfMsgSenderIsNotArbiter() external createAndFundTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(SUPPLIER);
         vm.expectRevert();
         escrow.confirmCustomsCleared(tradeId, true);
     }
 
-    function testConfirmCustomsClearedRevertsIfTradeNotFunded() external createTradeSuccessfully() {
+    function testConfirmCustomsClearedRevertsIfTradeNotFunded() external createTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(ARBITER);
         vm.expectRevert();
         escrow.confirmCustomsCleared(tradeId, true);
     }
 
-    function testConfirmCustomsClearedRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully() {
+    function testConfirmCustomsClearedRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully {
         // ARRANGE
         vm.warp(block.timestamp + 2 weeks);
 
@@ -432,14 +428,14 @@ contract EscrowTest is Test {
         escrow.confirmCustomsCleared(tradeId, true);
     }
 
-    function testConfirmCustomsClearedRevertsIfNotConfirmed() external createAndFundTradeSuccessfully() {
+    function testConfirmCustomsClearedRevertsIfNotConfirmed() external createAndFundTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(ARBITER);
         vm.expectRevert();
         escrow.confirmCustomsCleared(tradeId, false);
     }
 
-    function testConfirmShippedRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully() {
+    function testConfirmShippedRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully {
         // ARRANGE
         uint256 invalidTradeId = 999;
 
@@ -449,21 +445,21 @@ contract EscrowTest is Test {
         escrow.confirmShipped(invalidTradeId, true);
     }
 
-    function testConfirmShippedRevertsIfMsgSenderIsNotArbiter() external createAndFundTradeSuccessfully() {
+    function testConfirmShippedRevertsIfMsgSenderIsNotArbiter() external createAndFundTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(SUPPLIER);
         vm.expectRevert();
         escrow.confirmShipped(tradeId, true);
     }
 
-    function testConfirmShippedRevertsIfTradeNotFunded() external createTradeSuccessfully() {
+    function testConfirmShippedRevertsIfTradeNotFunded() external createTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(ARBITER);
         vm.expectRevert();
         escrow.confirmShipped(tradeId, true);
     }
 
-    function testConfirmShippedRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully() {
+    function testConfirmShippedRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully {
         // ARRANGE
         vm.warp(block.timestamp + 2 weeks);
 
@@ -473,14 +469,14 @@ contract EscrowTest is Test {
         escrow.confirmShipped(tradeId, true);
     }
 
-    function testConfirmShippedRevertsIfNotConfirmed() external createAndFundTradeSuccessfully() {
+    function testConfirmShippedRevertsIfNotConfirmed() external createAndFundTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(ARBITER);
         vm.expectRevert();
         escrow.confirmShipped(tradeId, false);
     }
 
-    function testMeetTradeConditionsRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully() {
+    function testMeetTradeConditionsRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully {
         // ARRANGE
         uint256 invalidTradeId = 999;
 
@@ -490,21 +486,21 @@ contract EscrowTest is Test {
         escrow.meetTradeConditions(invalidTradeId);
     }
 
-    function testMeetTradeConditionsRevertsIfMsgSenderIsNotArbiter() external createAndFundTradeSuccessfully() {
+    function testMeetTradeConditionsRevertsIfMsgSenderIsNotArbiter() external createAndFundTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(SUPPLIER);
         vm.expectRevert();
         escrow.meetTradeConditions(tradeId);
     }
 
-    function testMeetTradeConditionsRevertsIfTradeNotFunded() external createTradeSuccessfully() {
+    function testMeetTradeConditionsRevertsIfTradeNotFunded() external createTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(ARBITER);
         vm.expectRevert();
         escrow.meetTradeConditions(tradeId);
     }
 
-    function testMeetTradeConditionsRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully() {
+    function testMeetTradeConditionsRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully {
         // ARRANGE
         vm.warp(block.timestamp + 2 weeks);
 
@@ -514,14 +510,14 @@ contract EscrowTest is Test {
         escrow.meetTradeConditions(tradeId);
     }
 
-    function testMeetTradeConditionsRevertsIfNotAllConditionsMet() external createAndFundTradeSuccessfully() {
+    function testMeetTradeConditionsRevertsIfNotAllConditionsMet() external createAndFundTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(ARBITER);
         vm.expectRevert();
         escrow.meetTradeConditions(tradeId);
     }
 
-    function testConfirmDeliveryRevertsIfInvalidTradeId() external meetTradeConditionsSuccessfully() {
+    function testConfirmDeliveryRevertsIfInvalidTradeId() external meetTradeConditionsSuccessfully {
         // ARRANGE
         uint256 invalidTradeId = 999;
 
@@ -531,14 +527,14 @@ contract EscrowTest is Test {
         escrow.confirmDelivery(invalidTradeId);
     }
 
-    function testConfirmDeliveryRevertsIfMsgSenderIsNotArbiter() external meetTradeConditionsSuccessfully() {
+    function testConfirmDeliveryRevertsIfMsgSenderIsNotArbiter() external meetTradeConditionsSuccessfully {
         // ACT & ASSERT
         vm.prank(SUPPLIER);
         vm.expectRevert();
         escrow.confirmDelivery(tradeId);
     }
 
-    function testConfirmDeliveryRevertsIfTradeConditionsNotMet() external createAndFundTradeSuccessfully() {
+    function testConfirmDeliveryRevertsIfTradeConditionsNotMet() external createAndFundTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(ARBITER);
         vm.expectRevert();
@@ -548,9 +544,9 @@ contract EscrowTest is Test {
     /*//////////////////////////////////////////////////////////////
                             EDGE CASES TESTS
     //////////////////////////////////////////////////////////////*/
-    function testRaiseAndResolveDisputeToSupplierWorks() external meetTradeConditionsSuccessfully() {
+    function testRaiseAndResolveDisputeToSupplierWorks() external meetTradeConditionsSuccessfully {
         // ARRANGE
-        
+
         // ACT
         vm.prank(BUYER);
         escrow.raiseDispute(tradeId);
@@ -560,9 +556,9 @@ contract EscrowTest is Test {
         // ASSERT
     }
 
-    function testRaiseAndResolveDisputeToBuyerWorks() external meetTradeConditionsSuccessfully() {
+    function testRaiseAndResolveDisputeToBuyerWorks() external meetTradeConditionsSuccessfully {
         // ARRANGE
-        
+
         // ACT
         vm.prank(BUYER);
         escrow.raiseDispute(tradeId);
@@ -572,7 +568,7 @@ contract EscrowTest is Test {
         // ASSERT
     }
 
-    function testClaimRefundWorks() external createAndFundTradeSuccessfully() {
+    function testClaimRefundWorks() external createAndFundTradeSuccessfully {
         // ARRANGE
         // vm.prank(BUYER);
         // escrow.raiseDispute(tradeId);
@@ -587,7 +583,7 @@ contract EscrowTest is Test {
         // ASSERT
     }
 
-    function testCancelTradeWorks() external createTradeSuccessfully() {
+    function testCancelTradeWorks() external createTradeSuccessfully {
         // ARRANGE
 
         // ACT
@@ -595,27 +591,26 @@ contract EscrowTest is Test {
         escrow.cancelTrade(tradeId);
 
         // ASSERT
-
     }
 
     /*//////////////////////////////////////////////////////////////
                         EDGE CASES REVERT TESTS
     //////////////////////////////////////////////////////////////*/
-    function testRaiseDisputeRevertsIfTradeNotFunded() external createTradeSuccessfully() {
+    function testRaiseDisputeRevertsIfTradeNotFunded() external createTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(BUYER);
         vm.expectRevert();
         escrow.raiseDispute(tradeId);
     }
 
-    function testResolveDisputeRevertsIfTradeNotFunded() external createTradeSuccessfully() {
+    function testResolveDisputeRevertsIfTradeNotFunded() external createTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(ARBITER);
         vm.expectRevert();
         escrow.resolveDispute(tradeId, true);
     }
 
-    function testRaiseDisputeRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully() {
+    function testRaiseDisputeRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully {
         // ARRANGE
         uint256 invalidTradeId = 999;
 
@@ -625,7 +620,7 @@ contract EscrowTest is Test {
         escrow.raiseDispute(invalidTradeId);
     }
 
-    function testResolveDisputeRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully() {
+    function testResolveDisputeRevertsIfInvalidTradeId() external createAndFundTradeSuccessfully {
         // ARRANGE
         uint256 invalidTradeId = 999;
 
@@ -635,7 +630,7 @@ contract EscrowTest is Test {
         escrow.resolveDispute(invalidTradeId, true);
     }
 
-    function testRaiseDisputeRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully() {
+    function testRaiseDisputeRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully {
         // ARRANGE
         vm.warp(block.timestamp + 2 weeks);
 
@@ -645,15 +640,14 @@ contract EscrowTest is Test {
         escrow.raiseDispute(tradeId);
     }
 
-    function testResolveDisputeRevertsIfNotArbiter() external createAndFundTradeSuccessfully() {
+    function testResolveDisputeRevertsIfNotArbiter() external createAndFundTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(SUPPLIER);
         vm.expectRevert();
         escrow.resolveDispute(tradeId, true);
     }
 
-
-    function testClaimRefundRevertsIfNotBuyer() external meetTradeConditionsSuccessfully() {
+    function testClaimRefundRevertsIfNotBuyer() external meetTradeConditionsSuccessfully {
         // ARRANGE
         vm.prank(BUYER);
         escrow.raiseDispute(tradeId);
@@ -666,7 +660,7 @@ contract EscrowTest is Test {
         escrow.claimRefund(tradeId);
     }
 
-    function testClaimRefundRevertsIfInvalidTradeId() external meetTradeConditionsSuccessfully() {
+    function testClaimRefundRevertsIfInvalidTradeId() external meetTradeConditionsSuccessfully {
         // ARRANGE
         vm.prank(BUYER);
         escrow.raiseDispute(tradeId);
@@ -681,14 +675,14 @@ contract EscrowTest is Test {
         escrow.claimRefund(invalidTradeId);
     }
 
-    function testClaimRefundRevertsIfTradeNotFunded() external createTradeSuccessfully() {
+    function testClaimRefundRevertsIfTradeNotFunded() external createTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(BUYER);
         vm.expectRevert();
         escrow.claimRefund(tradeId);
     }
 
-    function testClaimRefundRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully() {
+    function testClaimRefundRevertsIfInvalidDeadline() external createAndFundTradeSuccessfully {
         // ARRANGE
         // vm.prank(BUYER);
         // escrow.raiseDispute(tradeId);
@@ -703,7 +697,7 @@ contract EscrowTest is Test {
         escrow.claimRefund(tradeId);
     }
 
-    function testCancelTradeRevertsIfInvalidTradeId() external createTradeSuccessfully() {
+    function testCancelTradeRevertsIfInvalidTradeId() external createTradeSuccessfully {
         // ARRANGE
         uint256 invalidTradeId = 999;
 
@@ -713,14 +707,14 @@ contract EscrowTest is Test {
         escrow.cancelTrade(invalidTradeId);
     }
 
-    function testCancelTradeRevertsIfNotBuyer() external createTradeSuccessfully() {
+    function testCancelTradeRevertsIfNotBuyer() external createTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(SUPPLIER);
         vm.expectRevert();
         escrow.cancelTrade(tradeId);
     }
 
-    function testCancelTradeRevertsIfTradeAlreadyFunded() external createAndFundTradeSuccessfully() {
+    function testCancelTradeRevertsIfTradeAlreadyFunded() external createAndFundTradeSuccessfully {
         // ACT & ASSERT
         vm.prank(BUYER);
         vm.expectRevert();
@@ -730,7 +724,7 @@ contract EscrowTest is Test {
     /*//////////////////////////////////////////////////////////////
                         GETTER FUNCTIONS TESTS
     //////////////////////////////////////////////////////////////*/
-    function testGetTradeArbiterReturnsCorrectAddress() external createAndFundTradeSuccessfully() {
+    function testGetTradeArbiterReturnsCorrectAddress() external createAndFundTradeSuccessfully {
         // ACT
         address arbiter = escrow.getTradeArbiter(tradeId);
 
@@ -738,7 +732,7 @@ contract EscrowTest is Test {
         assertEq(arbiter, ARBITER);
     }
 
-    function testGetTradeConditionsReturnsCorrectValues() external createAndFundTradeSuccessfully() {
+    function testGetTradeConditionsReturnsCorrectValues() external createAndFundTradeSuccessfully {
         // ACT
         (bool goodsReceived, bool customsCleared, bool shipped) = escrow.getTradeConditions(tradeId);
 
@@ -748,7 +742,7 @@ contract EscrowTest is Test {
         assertEq(shipped, false);
     }
 
-    function testGetTradeStatusReturnsCorrectValue() external createAndFundTradeSuccessfully() {
+    function testGetTradeStatusReturnsCorrectValue() external createAndFundTradeSuccessfully {
         // ACT
         Escrow.Status status = escrow.getTradeStatus(tradeId);
 
@@ -756,7 +750,7 @@ contract EscrowTest is Test {
         assertEq(uint8(status), uint8(Escrow.Status.Funded));
     }
 
-    function testGetTradeDetailsReturnsCorrectValues() external createAndFundTradeSuccessfully() {
+    function testGetTradeDetailsReturnsCorrectValues() external createAndFundTradeSuccessfully {
         // ACT
         Escrow.Trade memory trade = escrow.getTrade(tradeId);
 
@@ -766,7 +760,6 @@ contract EscrowTest is Test {
         assertEq(trade.amount, 10e6);
         assertEq(trade.deadline, block.timestamp + 1 weeks);
     }
-
 
     /*//////////////////////////////////////////////////////////////
                         FORK TESTS ON ARC TESTNET
@@ -780,14 +773,12 @@ contract EscrowTest is Test {
         vm.prank(OWNER);
         vault = new Vault(address(usdc), PLACEHOLDER);
 
-
         vm.prank(OWNER);
         escrow = new Escrow(address(vault));
 
         vm.prank(OWNER);
         vault.setEscrow(address(escrow));
         // ASSERT
-
     }
 
     function testConfirmDeliveryIsSuccessfulOnArc() external {
@@ -804,13 +795,12 @@ contract EscrowTest is Test {
         vm.prank(OWNER);
         vault = new Vault(address(usdc), PLACEHOLDER);
 
-
         vm.prank(OWNER);
         escrow = new Escrow(address(vault));
 
         vm.prank(OWNER);
         vault.setEscrow(address(escrow));
-        
+
         vm.prank(BUYER);
         tradeId = escrow.createTrade(BUYER, SUPPLIER, tradeAmount, ARBITER, tradeDeadline);
 
@@ -834,8 +824,14 @@ contract EscrowTest is Test {
 
         // ASSERT
         assertEq(usdc.balanceOf(SUPPLIER), tradeAmount);
-        console2.log("Supplier has successfully recieved payment for the goods supplied to the buyer on the Arc Testnet network");
-        console2.log("Supplier recieved", (tradeAmount / 1e6), "USDC, after successful delivery confirmation by the third-party arbiter.");
+        console2.log(
+            "Supplier has successfully recieved payment for the goods supplied to the buyer on the Arc Testnet network"
+        );
+        console2.log(
+            "Supplier recieved",
+            (tradeAmount / 1e6),
+            "USDC, after successful delivery confirmation by the third-party arbiter."
+        );
     }
 
     /*//////////////////////////////////////////////////////////////

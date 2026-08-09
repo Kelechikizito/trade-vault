@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
 // import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 // import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 // import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -17,7 +18,8 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  * @notice This contract handles deposits and withdrawals of ERC20 tokens while holding them in case of refunds and release to the Escrow contract.
  * @dev Implemenation of a multi-sig(EIP712) + timelock setEscrow function call is for future development.
  */
-contract Vault is ReentrancyGuard, Ownable /*,EIP712 */{
+contract Vault is ReentrancyGuard, Ownable {
+    /*,EIP712 */
     /*//////////////////////////////////////////////////////////////
                               ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -64,7 +66,7 @@ contract Vault is ReentrancyGuard, Ownable /*,EIP712 */{
     /////////////////////////////////////////////////////////*/
     /**
      * @dev This modifier restricts access to functions that can only be called by the escrow contract. It checks if the caller's address matches the stored escrow address and reverts with an error if it does not.
-     * @param caller The address of the caller attempting to execute the function. 
+     * @param caller The address of the caller attempting to execute the function.
      */
     modifier onlyEscrow(address caller) {
         if (caller != s_escrow) {
@@ -102,9 +104,9 @@ contract Vault is ReentrancyGuard, Ownable /*,EIP712 */{
 
     /**
      * @dev External implementation of _depositERC.
-     * @param tradeId The unique identifier for the trade associated with the deposit. 
-     * @param from The address from which the ERC20 tokens will be transferred. 
-     * @param amount The amount of ERC20 tokens to be deposited into the vault for the specified tradeId. 
+     * @param tradeId The unique identifier for the trade associated with the deposit.
+     * @param from The address from which the ERC20 tokens will be transferred.
+     * @param amount The amount of ERC20 tokens to be deposited into the vault for the specified tradeId.
      */
     function depositERC(uint256 tradeId, address from, uint256 amount) external nonReentrant onlyEscrow(msg.sender) {
         _depositERC(tradeId, from, amount);
@@ -112,7 +114,7 @@ contract Vault is ReentrancyGuard, Ownable /*,EIP712 */{
 
     /**
      * @dev External implementation of _withdrawERC.
-     * @param tradeId The unique identifier for the trade associated with the withdrawal. 
+     * @param tradeId The unique identifier for the trade associated with the withdrawal.
      * @param to The address to which the withdrawn ERC20 tokens will be sent.
      * @param amount The amount of ERC20 tokens to be withdrawn from the vault for the specified tradeId.
      */
@@ -126,10 +128,10 @@ contract Vault is ReentrancyGuard, Ownable /*,EIP712 */{
     // Step 1 — Approve (done by the Buyer's wallet, not your contract)
     // The Buyer calls approve() on the stablecoin contract (e.g. USDC), authorizing your Vault to pull amount tokens. This happens outside your Solidity — it's a wallet/frontend action.
     /**
-     * @dev This function handles the deposit of ERC20 tokens into the vault for a specific tradeId. 
-     * @param tradeId The unique identifier for the trade associated with the deposit. 
-     * @param from The address from which the ERC20 tokens will be transferred. 
-     * @param amount The amount of ERC20 tokens to be deposited into the vault for the specified tradeId. 
+     * @dev This function handles the deposit of ERC20 tokens into the vault for a specific tradeId.
+     * @param tradeId The unique identifier for the trade associated with the deposit.
+     * @param from The address from which the ERC20 tokens will be transferred.
+     * @param amount The amount of ERC20 tokens to be deposited into the vault for the specified tradeId.
      */
     function _depositERC(uint256 tradeId, address from, uint256 amount) internal {
         // CHECKS
@@ -144,7 +146,7 @@ contract Vault is ReentrancyGuard, Ownable /*,EIP712 */{
 
     /**
      * @dev This function handles the withdrawal of ERC20 tokens from the vault for a specific tradeId. It checks if the vault has sufficient balance for the specified tradeId, updates the balance, and transfers the tokens to the specified address.
-     * @param tradeId The uniquie identifier for the trade associated with the withdrawal. 
+     * @param tradeId The uniquie identifier for the trade associated with the withdrawal.
      * @param to The address to which the withdrawn ERC20 tokens will be sent.
      * @param amount The amount of ERC20 tokens to be withdrawn from the vault for the specified tradeId.
      */

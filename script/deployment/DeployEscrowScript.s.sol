@@ -7,10 +7,9 @@ import {Vault} from "src/Vault.sol";
 import {DevOpsTools} from "foundry-devops/src/DevOpsTools.sol";
 
 contract DeployEscrowScript is Script {
-    // address mostRecentlyDeployed = DevOpsTools.get_most_recent_deployment("Vault", block.chainid);
-    
-    function run(address vaultAddress) public returns (Escrow) {
-        return deployEscrow(vaultAddress);
+    function run() public returns (Escrow) {
+        address mostRecentlyDeployedVault = DevOpsTools.get_most_recent_deployment("Vault", block.chainid);
+        return deployEscrow(mostRecentlyDeployedVault);
     }
 
     function deployEscrow(address vaultAddress) public returns (Escrow) {
