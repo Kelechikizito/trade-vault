@@ -6,6 +6,11 @@ TradeVault is a DeFi-native escrow platform securing cross-border trade between 
 
 A live frontend demo is available at [trade-vault-gamma.vercel.app](https://trade-vault-gamma.vercel.app/).
 
+**Live on Arc Testnet:**
+
+- Vault: [`0x194b050678eb50923b84fE5aDC8E6f8176D43335`](https://testnet.arcscan.app/address/0x194b050678eb50923b84fe5adc8e6f8176d43335)
+- Escrow: [`0xce0c01B9c2E407af328eB25D06aea0f1929aaBC7`](https://testnet.arcscan.app/address/0xce0c01b9c2e407af328eb25d06aea0f1929aabc7)
+
 ## Table of Contents
 
 - [TradeVault](#tradevault)
@@ -91,19 +96,36 @@ The frontend is built with Next.js and Tailwind, using `wagmi`/`viem` with Rainb
 
 Live demo: [trade-vault-gamma.vercel.app](https://trade-vault-gamma.vercel.app/)
 
-_(Note: at time of writing, the frontend is deployed with mock contract data — the live contract address is being wired in as a follow-up step.)_
-
 ## Deployment and Interaction
 
-Deploy `Vault` first, then `Escrow` pointing at the Vault's address, then wire the Vault back to the Escrow:
+Contracts were deployed to Arc Testnet in three steps, in order — Vault first (with a temporary placeholder escrow address), then Escrow (which resolves the just-deployed Vault's address automatically via `foundry-devops`), then a final call to wire the two together:
 
+```bash
+make deploy-usdc-vault-arc-testnet
+make deploy-escrow-arc-testnet
+make set-actual-escrow-script-arc-testnet
 ```
-forge script script/DeployVault.s.sol:DeployVault --broadcast --account <YOUR_FOUNDRY_KEYSTORE> --rpc-url <ARC_TESTNET_RPC_URL> -vvvv
 
-forge script script/DeployEscrow.s.sol:DeployEscrow --broadcast --account <YOUR_FOUNDRY_KEYSTORE> --rpc-url <ARC_TESTNET_RPC_URL> -vvvv
+Equivalent to running each script directly:
+
+```bash
+forge script script/deployment/DeployVaultScript.s.sol:DeployVaultScript \
+  --sig "run(address,address)" <USDC_TOKEN_ADDRESS> <DEPLOYER_ADDRESS> \
+  --rpc-url <ARC_TESTNET_RPC_URL> --account <YOUR_FOUNDRY_KEYSTORE> \
+  --broadcast --verify --verifier blockscout \
+  --verifier-url https://testnet.arcscan.app/api/ -vvvv
+
+forge script script/deployment/DeployEscrowScript.s.sol:DeployEscrowScript \
+  --rpc-url <ARC_TESTNET_RPC_URL> --account <YOUR_FOUNDRY_KEYSTORE> \
+  --broadcast --verify --verifier blockscout \
+  --verifier-url https://testnet.arcscan.app/api/ -vvvv
+
+forge script script/interactions/SetEscrowScript.s.sol:SetEscrowScript \
+  --rpc-url <ARC_TESTNET_RPC_URL> --account <YOUR_FOUNDRY_KEYSTORE> \
+  --broadcast -vvvv
 ```
 
-`Vault.setEscrow()` is called once, by the owner, to complete the wiring between the two contracts.
+`DeployEscrowScript` and `SetEscrowScript` both resolve the relevant contract addresses automatically from Foundry's broadcast history via `DevOpsTools.get_most_recent_deployment(...)` — no manual address copy-pasting required between steps, as long as they're run in order on the same chain.
 
 ## Testing
 
@@ -133,19 +155,19 @@ forge test --match-test OnArc -vvvv
 
 ## Testnet Deployments
 
-_(Pending — contracts not yet deployed to a persistent Arc Testnet address at time of writing.)_
+| Contract | Address                                      | Explorer                                                                                          |
+| -------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Vault    | `0x194b050678eb50923b84fE5aDC8E6f8176D43335` | [View on Arcscan](https://testnet.arcscan.app/address/0x194b050678eb50923b84fe5adc8e6f8176d43335) |
+| Escrow   | `0xce0c01B9c2E407af328eB25D06aea0f1929aaBC7` | [View on Arcscan](https://testnet.arcscan.app/address/0xce0c01b9c2e407af328eb25d06aea0f1929aabc7) |
 
-| Contract | Address |
-| -------- | ------- |
-| Vault    | `TBD`   |
-| Escrow   | `TBD`   |
+Both contracts are verified on Blockscout — source, ABI, and a read/write UI are available at the links above.
 
 ## Future Developments
 
-- Complete frontend wiring to the live deployed contract address (currently running on mock data).
+- Finish swapping the frontend's remaining mock-data reads over to the live deployed contracts above.
 - Add a dedicated `Arbitration` contract to separate dispute logic from core Escrow trust flow.
 - Expand test coverage with fuzz tests on trade amounts and deadlines.
-- Multi-token support beyond a single hardcoded stablecoin.
+- Multi-token support beyond a single hardcoded stablecoin (planned as separate Vault/Escrow pairs per token).
 - Timelock/multisig governance on `setEscrow()` in place of a single-owner key.
 
 ## Acknowledgement
