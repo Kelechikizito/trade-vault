@@ -3,11 +3,14 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
-import { isAddress } from "viem";
-import { createTrade } from "@/lib/mock-contract";
+import { useAccount, useConfig } from "wagmi";
+import { writeContract, waitForTransactionReceipt } from "@wagmi/core";
+import { isAddress, parseUnits, decodeEventLog } from "viem";
+import { escrowAbi } from "@/lib/abi/escrow-abi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { LiquidButton } from "@/components/ui/liquid-button";
+
+const ESCROW_ADDRESS = process.env.NEXT_PUBLIC_ESCROW_ADDRESS as `0x${string}`;
 
 // Amount input: digits with at most one decimal point — blocks letters,
 // multiple dots, and negative signs at the keystroke level.
@@ -15,8 +18,10 @@ const AMOUNT_PATTERN = /^\d*\.?\d*$/;
 
 export default function CreateTradePage() {
   const router = useRouter();
+  const config = useConfig();
   const { address, isConnected } = useAccount();
   const [loading, setLoading] = useState(false);
+  const [txError, setTxError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     supplier: "",
     arbiter: "",
@@ -80,14 +85,10 @@ export default function CreateTradePage() {
     const { name, value } = e.target;
 
     if (name === "amount") {
-      // Reject the keystroke entirely if it breaks the numeric pattern,
-      // rather than validating after the fact.
       if (value !== "" && !AMOUNT_PATTERN.test(value)) return;
     }
 
     if (name === "supplier" || name === "arbiter") {
-      // Addresses are case-sensitive in checksum form but comparisons
-      // below are case-insensitive, so just trim stray whitespace here.
       setFormData((prev) => ({ ...prev, [name]: value.trim() }));
       return;
     }
@@ -99,26 +100,74 @@ export default function CreateTradePage() {
     setTouched((prev) => ({ ...prev, [e.target.name]: true }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTouched({ supplier: true, arbiter: true, amount: true });
-    if (!isFormValid) return;
+    if (!isFormValid || !address) return;
 
+    setTxError(null);
     setLoading(true);
+
     try {
-      const tradeId = createTrade(
-        address || "",
-        formData.supplier,
-        formData.arbiter,
-        parseFloat(formData.amount),
-        "USDC",
-        formData.description,
-        parseInt(formData.deadline),
+      // Amount: USDC has 6 decimals — convert the human-entered string
+      // ("5000") into the raw uint256 the contract expects.
+      const amountRaw = parseUnits(formData.amount, 6);
+
+      // Deadline: the form collects an hours-offset ("48"), but the
+      // contract wants a real Unix timestamp.
+      const deadlineTimestamp = BigInt(
+        Math.floor(Date.now() / 1000) + Number(formData.deadline) * 3600,
       );
 
-      router.push(`/dashboard/trade/${tradeId}`);
+      const hash = await writeContract(config, {
+        address: ESCROW_ADDRESS,
+        abi: escrowAbi,
+        functionName: "createTrade",
+        // Signature: (buyer, supplier, amount, arbiter, deadline)
+        args: [
+          address as `0x${string}`,
+          formData.supplier as `0x${string}`,
+          amountRaw,
+          formData.arbiter as `0x${string}`,
+          deadlineTimestamp,
+        ],
+      });
+
+      const receipt = await waitForTransactionReceipt(config, { hash });
+
+      // createTrade's return value (tradeId) isn't directly readable from
+      // a receipt — decode it from the TradeCreated event it emits instead.
+      let newTradeId: bigint | null = null;
+      for (const log of receipt.logs) {
+        try {
+          const decoded = decodeEventLog({
+            abi: escrowAbi,
+            eventName: "TradeCreated",
+            data: log.data,
+            topics: log.topics,
+          });
+          newTradeId = decoded.args.tradeId as bigint;
+          break;
+        } catch {
+          // Not the event we're looking for — skip.
+        }
+      }
+
+      if (newTradeId !== null) {
+        router.push(`/dashboard/trade/TRADE-${newTradeId.toString()}`);
+      } else {
+        // Fallback: couldn't decode the event, but the trade was created —
+        // send them to the dashboard instead of a broken trade URL.
+        router.push("/dashboard");
+      }
     } catch (error) {
       console.error("Error creating trade:", error);
+      setTxError(
+        error instanceof Error
+          ? error.message
+          : "Transaction failed. Please try again.",
+      );
+    } finally {
       setLoading(false);
     }
   };
@@ -324,6 +373,13 @@ export default function CreateTradePage() {
               <option value="168">7 days</option>
             </select>
           </div>
+
+          {/* Transaction Error */}
+          {txError && (
+            <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-4 py-3">
+              {txError}
+            </p>
+          )}
 
           {/* Submit Button */}
           <div className="flex gap-4 pt-4">

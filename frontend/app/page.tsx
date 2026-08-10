@@ -35,6 +35,26 @@ export default function Page() {
             verification.
           </p>
 
+          <div className="flex gap-4 justify-center text-xs text-muted-foreground">
+            <a
+              href="https://testnet.arcscan.app/address/0x194b050678eb50923b84fe5adc8e6f8176d43335"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-foreground transition-colors underline underline-offset-2"
+            >
+              Vault Contract ↗
+            </a>
+            <span>·</span>
+            <a
+              href="https://testnet.arcscan.app/address/0xce0c01b9c2e407af328eb25d06aea0f1929aabc7"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-foreground transition-colors underline underline-offset-2"
+            >
+              Escrow Contract ↗
+            </a>
+          </div>
+
           <div className="flex gap-4 justify-center pt-4">
             {isConnected ? (
               <>

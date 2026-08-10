@@ -1,22 +1,17 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { useAccount } from "wagmi";
+import { useAccount, useConfig, useReadContract } from "wagmi";
 import {
-  getTrade,
-  fundTrade,
-  confirmShipped,
-  confirmCustomsCleared,
-  confirmGoodsReceived,
-  meetTradeConditions,
-  confirmDelivery,
-  raiseDispute,
-  claimRefund,
-  cancelTrade,
-  resolveDispute,
-} from "@/lib/mock-contract";
-import { Trade, UserRole } from "@/lib/types";
+  writeContract,
+  waitForTransactionReceipt,
+  readContract,
+} from "@wagmi/core";
+import { parseUnits } from "viem";
+import { escrowAbi } from "@/lib/abi/escrow-abi";
+import { erc20Abi } from "@/lib/abi/erc20-abi";
+import { Trade, TradeStatus, UserRole } from "@/lib/types";
 import { StatusBadge } from "@/components/status-badge";
 import { StepTimeline } from "@/components/step-timeline";
 import { ShipmentMap } from "@/components/shipment-map";
@@ -24,10 +19,68 @@ import { MilestoneList } from "@/components/milestone-list";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { LiquidButton } from "@/components/ui/liquid-button";
 import { ConfirmActionModal } from "@/components/confirm-action-modal";
+import { useEscrowWrite } from "@/lib/hooks/useEscrowWrite";
+
+const ESCROW_ADDRESS = process.env.NEXT_PUBLIC_ESCROW_ADDRESS as `0x${string}`;
+const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS as `0x${string}`;
+const USDC_ADDRESS =
+  "0x3600000000000000000000000000000000000000" as `0x${string}`;
+
+// Order MUST match the Solidity Status enum exactly:
+// Created, Funded, ConditionsMet, Disputed, Cancelled, Refunded, Released
+const STATUS_MAP: TradeStatus[] = [
+  "Created",
+  "Funded",
+  "Conditions Met",
+  "Dispute",
+  "Cancelled",
+  "Refunded",
+  "Released",
+];
+
+type RawTrade = {
+  buyer: `0x${string}`;
+  supplier: `0x${string}`;
+  arbiter: `0x${string}`;
+  amount: bigint;
+  deadline: bigint;
+  shipped: boolean;
+  customsCleared: boolean;
+  goodsReceived: boolean;
+  status: number;
+};
+
+function mapRawTrade(tradeIdStr: string, raw: RawTrade): Trade {
+  const {
+    buyer,
+    supplier,
+    arbiter,
+    amount,
+    deadline,
+    shipped,
+    customsCleared,
+    goodsReceived,
+    status,
+  } = raw;
+  return {
+    id: tradeIdStr,
+    buyer,
+    supplier,
+    arbiter,
+    amount: Number(amount) / 1e6, // USDC, 6 decimals
+    currency: "USDC",
+    description: "",
+    status: STATUS_MAP[status],
+    conditions: { shipped, customsCleared, goodsReceived },
+    createdAt: 0,
+    fundingDeadline: Number(deadline),
+    disputes: [],
+  };
+}
 
 type PendingAction = {
-  action: () => boolean;
-  name: string;
+  functionName: string;
+  args: readonly unknown[];
   title: string;
   description: string;
   confirmLabel: string;
@@ -41,51 +94,116 @@ export default function TradeDetailPage({
 }) {
   const { id } = use(params);
   const { address } = useAccount();
-  const [trade, setTrade] = useState<Trade | null>(null);
-  const [userRole, setUserRole] = useState<UserRole>("none");
-  const [loading, setLoading] = useState(false);
+  const config = useConfig();
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [isFunding, setIsFunding] = useState(false);
+  const [fundStep, setFundStep] = useState<"idle" | "approving" | "depositing">(
+    "idle",
+  );
+  const [fundError, setFundError] = useState<string | null>(null);
+  const { execute, isPending, isConfirming, isSuccess, error } =
+    useEscrowWrite();
 
+  const numericId = id.replace("TRADE-", "");
+  const tradeIdBigInt = /^\d+$/.test(numericId) ? BigInt(numericId) : null;
+
+  const { data, isLoading, isError, refetch } = useReadContract({
+    address: ESCROW_ADDRESS,
+    abi: escrowAbi,
+    functionName: "getTrade",
+    args: tradeIdBigInt !== null ? [tradeIdBigInt] : undefined,
+    query: { enabled: tradeIdBigInt !== null },
+  });
+
+  const trade: Trade | null =
+    data && tradeIdBigInt !== null
+      ? mapRawTrade(id, data as unknown as RawTrade)
+      : null;
+
+  let userRole: UserRole = "none";
+  if (trade && address) {
+    if (address.toLowerCase() === trade.buyer.toLowerCase()) userRole = "buyer";
+    else if (address.toLowerCase() === trade.supplier.toLowerCase())
+      userRole = "supplier";
+    else if (address.toLowerCase() === trade.arbiter.toLowerCase())
+      userRole = "arbiter";
+  }
+
+  const isBusy = isPending || isConfirming;
+
+  // Once a write confirms on-chain, refetch the trade and close any open modal.
   useEffect(() => {
-    const loadedTrade = getTrade(id);
-    setTrade(loadedTrade);
-
-    if (loadedTrade && address) {
-      if (address === loadedTrade.buyer) setUserRole("buyer");
-      else if (address === loadedTrade.supplier) setUserRole("supplier");
-      else if (address === loadedTrade.arbiter) setUserRole("arbiter");
+    if (isSuccess) {
+      refetch();
+      setPendingAction(null);
     }
-  }, [id, address]);
+  }, [isSuccess, refetch]);
 
-  const handleAction = (action: () => boolean, actionName: string) => {
-    if (!trade) return;
-    setLoading(true);
+  const runDirect = (functionName: string, args: readonly unknown[]) => {
+    execute(functionName, args);
+  };
+
+  const handleFund = async () => {
+    if (!address || !trade) return;
+    setFundError(null);
+    setIsFunding(true);
 
     try {
-      const success = action();
-      if (success) {
-        const updated = getTrade(trade.id);
-        if (updated) {
-          setTrade(updated);
-        }
-      } else {
-        console.log(`[v0] ${actionName} failed - invalid state`);
+      const amountRaw = parseUnits(trade.amount.toString(), 6);
+
+      // Check current allowance first — skip the approve tx entirely if
+      // a sufficient allowance already exists (e.g. from a prior attempt).
+      const currentAllowance = await readContract(config, {
+        address: USDC_ADDRESS,
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [address, VAULT_ADDRESS],
+      });
+
+      if (currentAllowance < amountRaw) {
+        setFundStep("approving");
+        const approveHash = await writeContract(config, {
+          address: USDC_ADDRESS,
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [VAULT_ADDRESS, amountRaw],
+        });
+        await waitForTransactionReceipt(config, { hash: approveHash });
       }
-    } catch (error) {
-      console.error(`[v0] Error during ${actionName}:`, error);
+
+      setFundStep("depositing");
+      const fundHash = await writeContract(config, {
+        address: ESCROW_ADDRESS,
+        abi: escrowAbi,
+        functionName: "fundTrade",
+        args: [tradeIdBigInt as bigint],
+      });
+      await waitForTransactionReceipt(config, { hash: fundHash });
+
+      await refetch();
+    } catch (err) {
+      console.error("Fund trade failed:", err);
+      setFundError(
+        err instanceof Error
+          ? err.message
+          : "Funding failed. Please try again.",
+      );
     } finally {
-      setLoading(false);
-      setPendingAction(null);
+      setIsFunding(false);
+      setFundStep("idle");
     }
   };
 
-  // Actions with real financial consequence route through the confirmation
-  // modal instead of firing directly on click.
   const requestConfirmation = (details: NonNullable<PendingAction>) => {
     setPendingAction(details);
   };
 
-  if (!trade) {
+  if (
+    tradeIdBigInt === null ||
+    isError ||
+    (!isLoading &&
+      (!trade || trade.buyer === "0x0000000000000000000000000000000000000000"))
+  ) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
         <header className="sticky top-0 z-50 backdrop-blur-md bg-background/80 border-b border-border">
@@ -105,17 +223,36 @@ export default function TradeDetailPage({
     );
   }
 
+  if (isLoading || !trade) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+        <header className="sticky top-0 z-50 backdrop-blur-md bg-background/80 border-b border-border">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <Link href="/">
+              <div className="text-2xl font-bold text-primary cursor-pointer">
+                TradeVault
+              </div>
+            </Link>
+            <ConnectButton />
+          </div>
+        </header>
+        <div className="max-w-6xl mx-auto px-4 py-20 text-center">
+          <p className="text-muted-foreground">Loading trade from chain…</p>
+        </div>
+      </main>
+    );
+  }
+
   const canFund = userRole === "buyer" && trade.status === "Created";
   const canConfirmShipped =
     userRole === "arbiter" &&
     trade.status === "Funded" &&
     !trade.conditions.shipped;
   const canConfirmMilestones =
-    userRole === "arbiter" &&
-    (trade.status === "Shipped" || trade.status === "Funded");
+    userRole === "arbiter" && trade.status === "Funded";
   const canMeetConditions =
     userRole === "arbiter" &&
-    trade.status === "Shipped" &&
+    trade.status === "Funded" &&
     trade.conditions.shipped &&
     trade.conditions.customsCleared &&
     trade.conditions.goodsReceived;
@@ -123,17 +260,14 @@ export default function TradeDetailPage({
     userRole === "arbiter" && trade.status === "Conditions Met";
   const canRaiseDispute =
     (userRole === "buyer" || userRole === "supplier") &&
-    trade.status === "Funded";
+    (trade.status === "Funded" || trade.status === "Conditions Met");
   const canClaimRefund = userRole === "buyer" && trade.status === "Funded";
-  const canCancelTrade =
-    userRole === "buyer" &&
-    (trade.status === "Created" || trade.status === "Funded");
+  const canCancelTrade = userRole === "buyer" && trade.status === "Created";
   const canResolveDispute =
     userRole === "arbiter" && trade.status === "Dispute";
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
-      {/* Header */}
       <header className="sticky top-0 z-50 backdrop-blur-md bg-background/80 border-b border-border">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/">
@@ -145,7 +279,6 @@ export default function TradeDetailPage({
         </div>
       </header>
 
-      {/* Content */}
       <div className="max-w-6xl mx-auto px-4 py-8">
         <Link
           href="/dashboard"
@@ -154,13 +287,9 @@ export default function TradeDetailPage({
           ← Back to Dashboard
         </Link>
 
-        {/* Trade Header */}
         <div className="glass-panel p-8 rounded-lg mb-8">
           <div className="flex justify-between items-start mb-4">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">{trade.id}</h1>
-              <p className="text-muted-foreground mt-1">{trade.description}</p>
-            </div>
+            <h1 className="text-3xl font-bold text-foreground">{trade.id}</h1>
             <StatusBadge status={trade.status} />
           </div>
 
@@ -183,16 +312,9 @@ export default function TradeDetailPage({
                 {new Date(trade.fundingDeadline * 1000).toLocaleDateString()}
               </p>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Created</p>
-              <p className="text-lg font-bold text-foreground">
-                {new Date(trade.createdAt * 1000).toLocaleDateString()}
-              </p>
-            </div>
           </div>
         </div>
 
-        {/* Status Timeline */}
         <div className="glass-panel p-8 rounded-lg mb-8">
           <h2 className="text-xl font-bold text-foreground mb-6">
             Trade Progress
@@ -200,12 +322,10 @@ export default function TradeDetailPage({
           <StepTimeline status={trade.status} />
         </div>
 
-        {/* Shipment Map */}
         <div className="mb-8">
           <ShipmentMap trade={trade} />
         </div>
 
-        {/* Milestones */}
         <div className="glass-panel p-8 rounded-lg mb-8">
           <h2 className="text-xl font-bold text-foreground mb-6">
             Shipment Milestones
@@ -213,9 +333,14 @@ export default function TradeDetailPage({
           <MilestoneList trade={trade} />
         </div>
 
-        {/* Action Buttons */}
         <div className="glass-panel p-8 rounded-lg">
           <h2 className="text-xl font-bold text-foreground mb-6">Actions</h2>
+
+          {error && (
+            <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-4 py-3 mb-4">
+              {error.message}
+            </p>
+          )}
 
           {userRole === "none" ? (
             <p className="text-muted-foreground">
@@ -230,49 +355,39 @@ export default function TradeDetailPage({
                     <LiquidButton
                       variant="primary"
                       className="w-full py-3"
-                      disabled={loading}
-                      onClick={() =>
-                        handleAction(() => fundTrade(trade.id), "Fund Trade")
-                      }
+                      disabled={isFunding || isBusy}
+                      onClick={handleFund}
                     >
-                      {loading
-                        ? "Processing..."
-                        : "Fund Trade (Approve & Deposit)"}
+                      {fundStep === "approving"
+                        ? "Approving USDC..."
+                        : fundStep === "depositing"
+                          ? "Depositing..."
+                          : "Fund Trade"}
                     </LiquidButton>
+                  )}
+                  {fundError && (
+                    <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-4 py-3">
+                      {fundError}
+                    </p>
                   )}
                   {canRaiseDispute && (
                     <LiquidButton
                       variant="destructive"
                       className="w-full py-3"
-                      disabled={loading}
-                      onClick={() =>
-                        handleAction(
-                          () =>
-                            raiseDispute(
-                              trade.id,
-                              address || "",
-                              "Goods not received",
-                            ),
-                          "Raise Dispute",
-                        )
-                      }
+                      disabled={isBusy}
+                      onClick={() => runDirect("raiseDispute", [tradeIdBigInt])}
                     >
-                      {loading ? "Processing..." : "Raise Dispute"}
+                      {isBusy ? "Processing..." : "Raise Dispute"}
                     </LiquidButton>
                   )}
                   {canClaimRefund && (
                     <LiquidButton
                       variant="secondary"
                       className="w-full py-3"
-                      disabled={loading}
-                      onClick={() =>
-                        handleAction(
-                          () => claimRefund(trade.id),
-                          "Claim Refund",
-                        )
-                      }
+                      disabled={isBusy}
+                      onClick={() => runDirect("claimRefund", [tradeIdBigInt])}
                     >
-                      {loading
+                      {isBusy
                         ? "Processing..."
                         : "Claim Refund (Deadline Passed)"}
                     </LiquidButton>
@@ -281,44 +396,25 @@ export default function TradeDetailPage({
                     <LiquidButton
                       variant="secondary"
                       className="w-full py-3"
-                      disabled={loading}
-                      onClick={() =>
-                        handleAction(
-                          () => cancelTrade(trade.id),
-                          "Cancel Trade",
-                        )
-                      }
+                      disabled={isBusy}
+                      onClick={() => runDirect("cancelTrade", [tradeIdBigInt])}
                     >
-                      {loading ? "Processing..." : "Cancel Trade"}
+                      {isBusy ? "Processing..." : "Cancel Trade"}
                     </LiquidButton>
                   )}
                 </div>
               )}
 
               {/* Supplier Actions */}
-              {userRole === "supplier" && (
-                <div className="space-y-3">
-                  {canRaiseDispute && (
-                    <LiquidButton
-                      variant="destructive"
-                      className="w-full py-3"
-                      disabled={loading}
-                      onClick={() =>
-                        handleAction(
-                          () =>
-                            raiseDispute(
-                              trade.id,
-                              address || "",
-                              "Payment not received",
-                            ),
-                          "Raise Dispute",
-                        )
-                      }
-                    >
-                      {loading ? "Processing..." : "Raise Dispute"}
-                    </LiquidButton>
-                  )}
-                </div>
+              {userRole === "supplier" && canRaiseDispute && (
+                <LiquidButton
+                  variant="destructive"
+                  className="w-full py-3"
+                  disabled={isBusy}
+                  onClick={() => runDirect("raiseDispute", [tradeIdBigInt])}
+                >
+                  {isBusy ? "Processing..." : "Raise Dispute"}
+                </LiquidButton>
               )}
 
               {/* Arbiter Actions */}
@@ -328,15 +424,12 @@ export default function TradeDetailPage({
                     <LiquidButton
                       variant="secondary"
                       className="w-full py-3"
-                      disabled={loading}
+                      disabled={isBusy}
                       onClick={() =>
-                        handleAction(
-                          () => confirmShipped(trade.id, true),
-                          "Confirm Shipped",
-                        )
+                        runDirect("confirmShipped", [tradeIdBigInt, true])
                       }
                     >
-                      {loading ? "Processing..." : "Confirm Goods Shipped"}
+                      {isBusy ? "Processing..." : "Confirm Goods Shipped"}
                     </LiquidButton>
                   )}
 
@@ -349,17 +442,15 @@ export default function TradeDetailPage({
                         <LiquidButton
                           variant="secondary"
                           className="w-full"
-                          disabled={loading}
+                          disabled={isBusy}
                           onClick={() =>
-                            handleAction(
-                              () => confirmCustomsCleared(trade.id, true),
-                              "Confirm Customs",
-                            )
+                            runDirect("confirmCustomsCleared", [
+                              tradeIdBigInt,
+                              true,
+                            ])
                           }
                         >
-                          {loading
-                            ? "Processing..."
-                            : "Confirm Customs Cleared"}
+                          {isBusy ? "Processing..." : "Confirm Customs Cleared"}
                         </LiquidButton>
                       )}
                       {!trade.conditions.goodsReceived &&
@@ -367,15 +458,15 @@ export default function TradeDetailPage({
                           <LiquidButton
                             variant="secondary"
                             className="w-full"
-                            disabled={loading}
+                            disabled={isBusy}
                             onClick={() =>
-                              handleAction(
-                                () => confirmGoodsReceived(trade.id, true),
-                                "Confirm Received",
-                              )
+                              runDirect("confirmGoodsReceived", [
+                                tradeIdBigInt,
+                                true,
+                              ])
                             }
                           >
-                            {loading
+                            {isBusy
                               ? "Processing..."
                               : "Confirm Goods Received"}
                           </LiquidButton>
@@ -387,15 +478,12 @@ export default function TradeDetailPage({
                     <LiquidButton
                       variant="primary"
                       className="w-full py-3"
-                      disabled={loading}
+                      disabled={isBusy}
                       onClick={() =>
-                        handleAction(
-                          () => meetTradeConditions(trade.id),
-                          "Mark Conditions Met",
-                        )
+                        runDirect("meetTradeConditions", [tradeIdBigInt])
                       }
                     >
-                      {loading ? "Processing..." : "Mark All Conditions Met"}
+                      {isBusy ? "Processing..." : "Mark All Conditions Met"}
                     </LiquidButton>
                   )}
 
@@ -403,11 +491,11 @@ export default function TradeDetailPage({
                     <LiquidButton
                       variant="primary"
                       className="w-full py-3"
-                      disabled={loading}
+                      disabled={isBusy}
                       onClick={() =>
                         requestConfirmation({
-                          action: () => confirmDelivery(trade.id),
-                          name: "Confirm Delivery",
+                          functionName: "confirmDelivery",
+                          args: [tradeIdBigInt],
                           title: "Release payment to supplier?",
                           description:
                             "This confirms delivery and releases the locked funds to the supplier. This cannot be undone once submitted.",
@@ -428,11 +516,11 @@ export default function TradeDetailPage({
                       <div className="grid grid-cols-2 gap-2">
                         <LiquidButton
                           variant="primary"
-                          disabled={loading}
+                          disabled={isBusy}
                           onClick={() =>
                             requestConfirmation({
-                              action: () => resolveDispute(trade.id, true),
-                              name: "Release to Supplier",
+                              functionName: "resolveDispute",
+                              args: [tradeIdBigInt, true],
                               title: "Release payment to supplier?",
                               description:
                                 "This resolves the dispute in the supplier's favor and releases the locked funds to them. This cannot be undone once submitted.",
@@ -445,11 +533,11 @@ export default function TradeDetailPage({
                         </LiquidButton>
                         <LiquidButton
                           variant="secondary"
-                          disabled={loading}
+                          disabled={isBusy}
                           onClick={() =>
                             requestConfirmation({
-                              action: () => resolveDispute(trade.id, false),
-                              name: "Refund to Buyer",
+                              functionName: "resolveDispute",
+                              args: [tradeIdBigInt, false],
                               title: "Refund payment to buyer?",
                               description:
                                 "This resolves the dispute in the buyer's favor and refunds the locked funds to them. This cannot be undone once submitted.",
@@ -463,29 +551,12 @@ export default function TradeDetailPage({
                       </div>
                     </div>
                   )}
-
-                  {canCancelTrade && (
-                    <LiquidButton
-                      variant="secondary"
-                      className="w-full py-3"
-                      disabled={loading}
-                      onClick={() =>
-                        handleAction(
-                          () => cancelTrade(trade.id),
-                          "Cancel Trade",
-                        )
-                      }
-                    >
-                      {loading ? "Processing..." : "Cancel Trade"}
-                    </LiquidButton>
-                  )}
                 </div>
               )}
             </div>
           )}
         </div>
 
-        {/* Trade Details Section */}
         <div className="grid md:grid-cols-3 gap-6 mt-8">
           <div className="glass-panel p-6 rounded-lg">
             <p className="text-xs text-muted-foreground mb-2">Buyer</p>
@@ -515,9 +586,9 @@ export default function TradeDetailPage({
           description={pendingAction.description}
           confirmLabel={pendingAction.confirmLabel}
           confirmVariant={pendingAction.confirmVariant}
-          loading={loading}
+          loading={isBusy}
           onConfirm={() =>
-            handleAction(pendingAction.action, pendingAction.name)
+            execute(pendingAction.functionName, pendingAction.args)
           }
           onCancel={() => setPendingAction(null)}
         />
