@@ -1,14 +1,13 @@
 "use client";
 
 import { useReadContract, useReadContracts } from "wagmi";
-import { escrowAbi } from "@/lib/abi/escrow-abi"; // adjust to your actual ABI export
+import { escrowAbi } from "@/lib/abi/escrow-abi";
 import { Trade, TradeStatus } from "@/lib/types";
 
 const ESCROW_ADDRESS = process.env.NEXT_PUBLIC_ESCROW_ADDRESS as `0x${string}`;
 
-/* Maps the on-chain Status enum (uint8) to your frontend's TradeStatus string union.
-   Order MUST match your Solidity enum exactly:
-   Created, Funded, ConditionsMet, Disputed, Cancelled, Refunded, Released */
+// Order MUST match the Solidity Status enum exactly:
+// Created, Funded, ConditionsMet, Disputed, Cancelled, Refunded, Released
 const STATUS_MAP: TradeStatus[] = [
   "Created",
   "Funded",
@@ -19,7 +18,9 @@ const STATUS_MAP: TradeStatus[] = [
   "Released",
 ];
 
-/* Raw struct shape returned by getTrade(tradeId) — matches your Solidity Trade struct field order */
+// viem decodes named-tuple struct returns as an OBJECT keyed by field name
+// (not a positional array) whenever every component in the ABI has a name —
+// which yours does. This must match that shape, not a tuple.
 type RawTrade = {
   buyer: `0x${string}`;
   supplier: `0x${string}`;
@@ -33,22 +34,29 @@ type RawTrade = {
 };
 
 function mapRawTrade(tradeId: number, raw: RawTrade): Trade {
+  const {
+    buyer,
+    supplier,
+    arbiter,
+    amount,
+    deadline,
+    shipped,
+    customsCleared,
+    goodsReceived,
+    status,
+  } = raw;
   return {
     id: `TRADE-${tradeId}`,
-    buyer: raw.buyer,
-    supplier: raw.supplier,
-    arbiter: raw.arbiter,
-    amount: Number(raw.amount) / 1e6, // USDC has 6 decimals — adjust if using a different token
+    buyer,
+    supplier,
+    arbiter,
+    amount: Number(amount) / 1e6, // USDC has 6 decimals — adjust if using a different token
     currency: "USDC",
-    description: "", // not stored on-chain; contract has no description field
-    status: STATUS_MAP[raw.status],
-    conditions: {
-      shipped: raw.shipped,
-      customsCleared: raw.customsCleared,
-      goodsReceived: raw.goodsReceived,
-    },
-    createdAt: 0, // not returned by getTrade — see note below
-    fundingDeadline: Number(raw.deadline),
+    description: "", // not stored on-chain — contract has no description field
+    status: STATUS_MAP[status],
+    conditions: { shipped, customsCleared, goodsReceived },
+    createdAt: 0, // not returned by getTrade
+    fundingDeadline: Number(deadline),
     disputes: [],
   };
 }
@@ -84,7 +92,7 @@ export function useAllTrades() {
     results
       ?.map((result, i) =>
         result.status === "success"
-          ? mapRawTrade(i, result.result as RawTrade)
+          ? mapRawTrade(i, result.result as unknown as RawTrade)
           : null,
       )
       .filter((t): t is Trade => t !== null) ?? [];
